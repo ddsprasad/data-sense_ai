@@ -1,0 +1,112 @@
+.questionList {
+  margin-left: 47px;
+  list-style: none;
+  padding-top: 5px;
+  overflow: auto;
+  li {
+    padding-left: 10px;
+    color: #7B7A7A;
+    padding: 5px;
+    height: 20px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    overflow: hidden;
+    font-size: 13px;
+    cursor: pointer;
+    margin-right: 5px;
+    display: flex;
+    .questionInput {
+      border: none;
+      background: transparent;
+      color: var( --dark);
+      cursor: pointer;
+      width: calc(100% - 5px);
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      overflow: hidden;
+      font-size: 13px;
+      flex: 1;
+      outline-color: #7B7A7A;
+      &:read-only {
+        outline: none;
+      }
+    }
+    &.hightlight {
+      border-left: 2px solid var(--app-color);
+      background-color: #d8d8d8 !important;
+      .questionInput {
+        color: #2b2b2b;
+      }
+      border-radius: 5px;
+      .editIcon {
+        ::ng-deep path {
+          fill: var(--icon-static-color) !important;
+        }
+      }
+      .deleteicon {
+        ::ng-deep path:not(:last-child) {
+          fill: var(--icon-static-color) !important;
+        }
+        ::ng-deep path:last-child {
+          stroke: var(--icon-static-color) !important;
+        }
+      }
+    }
+    &:hover {
+      // border-left: 2px solid var(--app-color);
+      background-color: var(--side-menu-history-hover);
+      color: var( --dark);
+      border-radius: 5px;
+      .iconsGroup {
+        display: block;
+        /* ::ng-deep path {
+          fill: black;
+        } */
+        .editIcon {
+          ::ng-deep path {
+            fill: var(--icon-color-default);
+          }
+        }
+        .deleteicon {
+          ::ng-deep path:not(:last-child) {
+            fill: var(--icon-color-default);
+          }
+          ::ng-deep path:last-child {
+            stroke: var(--icon-color-default);
+          }
+        }
+      }
+    }
+
+    .iconsGroup {
+      display: none;
+    }
+
+  
+
+
+    .editIcon {
+      height: 14px;
+      width: 20px;
+      padding-left: 4px;
+    }
+    .deleteicon {
+      height: 16px;
+      // font-size: 18px;
+    }
+  }
+}
+
+/* ::ng-deep .custom-tooltip {
+  font-size: 11px;
+} */
+
+/* tool tip color changes*/
+
+::ng-deep .mdc-tooltip {
+  font-size: 11px !important;
+
+  .mdc-tooltip__surface {
+    background: black !important;
+  }
+}

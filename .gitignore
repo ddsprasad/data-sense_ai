@@ -1,0 +1,188 @@
+# ===================================
+# DataSense .gitignore
+# ===================================
+
+# ===== SENSITIVE FILES - NEVER COMMIT =====
+# Environment variables with API keys and credentials
+.env
+.env.local
+.env.*.local
+*.env
+
+# Configuration files with secrets
+config_local.py
+secrets.json
+credentials.json
+
+# ===== PYTHON =====
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# C extensions
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+cover/
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv
+
+# ===== LOGS & DATABASES =====
+# Log files (keep structure, ignore contents)
+*.log
+logs/*.log
+!logs/.gitkeep
+
+# SQL Server database files
+*.mdf
+*.ldf
+*.ndf
+
+# SQLite
+*.db
+*.sqlite
+*.sqlite3
+
+# ===== NODE / FRONTEND =====
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+package-lock.json
+yarn.lock
+
+# Build outputs
+dist/
+build/
+.next/
+out/
+
+# ===== IDEs & EDITORS =====
+# VSCode
+.vscode/
+*.code-workspace
+
+# PyCharm
+.idea/
+*.iml
+*.iws
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+
+# ===== OS FILES =====
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+
+# Linux
+*~
+
+# ===== TEMPORARY FILES =====
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*.old
+nul
+NUL
+
+# Test files
+test_*.py
+*_test.py
+test.json
+test.py
+
+# Output files
+output*.txt
+output*.json
+output*.html
+output*.csv
+
+# ===== PROJECT SPECIFIC =====
+# Fine-tuning datasets (large files)
+docs/fine tuning/**/*.jsonl
+docs/fine tuning/**/*.csv
+docs/fine tuning/**/*.xlsx
+
+# PDF documents (if sensitive)
+# Uncomment if you don't want to commit PDFs
+# *.pdf
+
+# Vector store indices (regenerated)
+.ragatouille/
+*.index
+*.faiss
+
+# Model checkpoints (large files)
+*.pt
+*.pth
+*.ckpt
+*.bin
+models/checkpoints/
+
+# Claude Code
+.claude/

@@ -1,0 +1,303 @@
+.question-blog {
+  height: 92%;
+  display: flex;
+  justify-content: center;
+  flex-direction: column;
+  align-items: center;
+  gap: 30px;
+  padding: 10px;
+
+  // Header Styles
+  .header {
+    text-align: center;
+    margin-bottom: 10px;
+
+    .header-text {
+      font-size: 42px;
+      font-weight: 600;
+      color: var(--text-primary-color);
+
+      .highlight {
+        position: relative;
+        color: var(--text-primary-color);
+
+        &::after {
+          content: '';
+          position: absolute;
+          bottom: 2px;
+          left: 0;
+          width: 100%;
+          height: 4px;
+          background: var(--app-color, #f47821);
+          border-radius: 2px;
+        }
+      }
+    }
+  }
+
+  // Bigger Question Box
+  .question-box {
+    border: 2px solid var(--input-border-color);
+    border-radius: 16px;
+    height: 180px;
+    min-width: 650px;
+    max-width: 750px;
+    position: relative;
+    padding: 16px;
+    overflow: auto;
+    background: var(--input-bg-color);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08);
+    transition: all 0.3s ease;
+
+    &:focus-within {
+      border-color: #3b82f6;
+      box-shadow: 0 4px 25px rgba(59, 130, 246, 0.15);
+    }
+
+    textarea {
+      border: none;
+      width: 100%;
+      min-width: 600px;
+      padding: 8px;
+      height: 130px;
+      outline: none;
+      resize: none;
+      font-size: 18px;
+      font-family: inherit;
+      line-height: 26px;
+      background: var(--input-bg-color);
+      color: var(--dark);
+
+      &::placeholder {
+        color: var(--tag-text-color);
+        opacity: 0.7;
+      }
+
+      &::-webkit-scrollbar {
+        width: 6px;
+        border-radius: 10px;
+      }
+
+      &::-webkit-scrollbar-thumb {
+        border-radius: 10px;
+        background: rgba(100, 100, 100, 0.3);
+      }
+
+      &::-webkit-scrollbar-thumb:hover {
+        background: rgba(100, 100, 100, 0.5);
+      }
+    }
+
+    button {
+      position: absolute;
+      bottom: 12px;
+      right: 12px;
+      background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%);
+      box-shadow: 0 2px 10px rgba(59, 130, 246, 0.3);
+      transition: all 0.3s ease;
+
+      &:hover:not(:disabled) {
+        transform: scale(1.05);
+        box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+      }
+
+      .sendIcon {
+        margin-top: 5px;
+        margin-right: 5px;
+      }
+
+      &:disabled {
+        background: var(--input-btn-bg-color);
+        box-shadow: none;
+
+        ::ng-deep .sendIcon {
+          path {
+            fill: var(--input-disabled);
+          }
+        }
+      }
+    }
+  }
+
+  // Professional Trending Section
+  .trending-section {
+    width: 100%;
+    max-width: 700px;
+    margin-top: 30px;
+
+    .trending-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 20px;
+
+      .trending-icon {
+        color: #ff6b35;
+        font-size: 24px;
+        width: 24px;
+        height: 24px;
+        animation: pulse 2s ease-in-out infinite;
+      }
+
+      .trending-title {
+        font-size: 18px;
+        font-weight: 600;
+        color: var(--text-primary-color);
+        letter-spacing: 0.5px;
+      }
+    }
+
+    .trending-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 12px;
+      width: 100%;
+    }
+
+    .trending-card {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 14px 16px;
+      background: var(--input-bg-color);
+      border: 1px solid var(--tag-border-color);
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.3s ease;
+
+      &:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        border-color: var(--primary-color, #3b82f6);
+        background: linear-gradient(135deg, var(--input-bg-color) 0%, rgba(59, 130, 246, 0.05) 100%);
+
+        .card-arrow {
+          opacity: 1;
+          transform: translateX(4px);
+        }
+
+        .card-icon mat-icon {
+          color: var(--primary-color, #3b82f6);
+        }
+      }
+
+      .card-icon {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 40px;
+        height: 40px;
+        background: linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(147, 51, 234, 0.1) 100%);
+        border-radius: 10px;
+        flex-shrink: 0;
+
+        mat-icon {
+          color: var(--tag-text-color);
+          font-size: 20px;
+          width: 20px;
+          height: 20px;
+          transition: color 0.3s ease;
+        }
+      }
+
+      .card-content {
+        flex: 1;
+        min-width: 0;
+
+        .card-text {
+          font-size: 14px;
+          color: var(--text-primary-color);
+          line-height: 1.4;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+      }
+
+      .card-arrow {
+        color: var(--tag-text-color);
+        font-size: 18px;
+        width: 18px;
+        height: 18px;
+        opacity: 0;
+        transition: all 0.3s ease;
+        flex-shrink: 0;
+      }
+    }
+  }
+
+  @keyframes pulse {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.6;
+    }
+  }
+}
+
+@media screen and (max-width: 750px) {
+  .question-blog {
+    gap: 20px;
+
+    .header {
+      .header-text {
+        font-size: 28px;
+
+        .highlight::after {
+          height: 3px;
+          bottom: 1px;
+        }
+      }
+    }
+
+    .question-box {
+      min-width: inherit !important;
+      width: 95%;
+      height: 150px;
+      padding: 12px;
+
+      textarea {
+        min-width: inherit !important;
+        width: 100%;
+        height: 110px;
+        font-size: 16px;
+        line-height: 22px;
+      }
+    }
+
+    .trending-section {
+      padding: 0 15px;
+
+      .trending-header {
+        .trending-title {
+          font-size: 16px;
+        }
+      }
+
+      .trending-list {
+        grid-template-columns: 1fr;
+      }
+
+      .trending-card {
+        padding: 12px;
+
+        .card-icon {
+          width: 36px;
+          height: 36px;
+        }
+
+        .card-content .card-text {
+          font-size: 13px;
+        }
+
+        .card-arrow {
+          opacity: 1;
+        }
+      }
+    }
+  }
+}

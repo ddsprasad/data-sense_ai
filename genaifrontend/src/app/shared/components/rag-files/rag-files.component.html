@@ -1,0 +1,203 @@
+<div class="main-content rag-page">
+  <div class="rag-content">
+    @if (answersList.length) {
+    <div class="question-blog-content">
+      @for (answer of answersList; track answer.question; let idx = $index) {
+      <div id="rag-question-{{ idx }}">
+        @if (answer.response) {
+        <div class="questionHead flex">
+          <mat-icon svgIcon="ai-question" class="sendIcon"></mat-icon>
+          Question
+          <!-- Show summary of this document -->
+        </div>
+        <br />
+        @if (answer?.response?.filesList.length > 0) {
+        <div class="fileList">
+          @for (file of answer?.response?.filesList; track file; let index =
+          $index) {
+          <span class="file">
+            <button
+              mat-mini-fab
+              aria-label="icon button"
+            >
+              <mat-icon>description</mat-icon>
+            </button>
+            <span class="fileName">
+              <span>
+                {{ file.name }}
+              </span>
+              <span>
+                {{ file.type }}
+              </span>
+            </span>
+          </span>
+          }
+        </div>
+        } @if (answer?.response.question?.length > 0) {
+        <div class="question">
+          <div>
+            {{ answer?.response.question }}
+          </div>
+        </div>
+        <br />
+        } @if(answer?.response?.answer) { @if (answer?.response?.answer ==
+        'irrelevant') {
+        <div class="error">
+          Apologies, but this question falls outside the scope of my training
+          datasets and the business context of the data source. As a result, I'm
+          unable to provide an accurate answer.
+        </div>
+        <br />
+        } @else {
+        <div class="answer-blog">
+          <div class="answerHead flex">
+            <mat-icon svgIcon="ai-answer" class="answerIcon"></mat-icon>
+            <span class="pointer header">Answer</span>
+            <div class="time">{{ answer.response.answered_at }}</div>
+          </div>
+          <br>
+          <div class="answer" [innerHTML]="answer.response.answer"></div>
+        </div>
+        <br>
+        <div class="icons">
+          <div class="share">
+            <span
+              matTooltip="Copy link"
+              matTooltipPosition="above"
+            >
+              @if (answer.share) {
+              <mat-icon>done</mat-icon>
+              } @else {
+              <mat-icon svgIcon="ai-share" class="th-icon copy"></mat-icon>
+              } share
+            </span>
+          </div>
+          @if (answer?.response?.dislike) {
+          <mat-icon
+            matTooltip="Like"
+            matTooltipPosition="above"
+            svgIcon="ai-like"
+            class="filled th-icon"
+          ></mat-icon>
+          } @else {
+          <mat-icon
+            matTooltip="Like"
+            matTooltipPosition="above"
+            svgIcon="ai-like"
+            class="th-icon"
+          ></mat-icon>
+          } @if (answer.answerCopy) {
+          <mat-icon>done</mat-icon>
+          } @else {
+          <mat-icon
+            matTooltip="Copy"
+            matTooltipPosition="above"
+            svgIcon="ai-copy"
+            class="copy th-icon"
+            (click)="answerCopy(idx)"
+          ></mat-icon>
+          }
+          <mat-icon
+            matTooltip="Delete"
+            matTooltipPosition="above"
+            svgIcon="ai-delete"
+            class="delete"
+          ></mat-icon>
+        </div>
+        <hr />
+        <br />
+        } }@else if (answer?.response?.error) {
+        <br />
+        <div class="error">{{ SOMETHING_WENT_WRONG }}</div>
+        <br />
+        <hr />
+        <br />
+        } @else {
+        <br />
+        <div class="spinner">
+          <mat-spinner diameter="20"></mat-spinner>
+        </div>
+        } } @else if (answer.error) {
+        <div class="error">{{ SOMETHING_WENT_WRONG }}</div>
+        <br />
+        <hr />
+        } @else {
+        <div class="spinner">
+          <mat-spinner diameter="20"></mat-spinner>
+        </div>
+        }
+      </div>
+      }
+    </div>
+    }
+  </div>
+  <div class="followup-container">
+    @if (selectedFiles.length) {
+    <div class="attachedFiles">
+      @for (file of selectedFiles; track file; let index = $index) {
+      <span class="file">
+        <mat-icon
+          class="cancelIcon"
+          matTooltip="Remove file"
+          matTooltipPosition="above"
+          (click)="remove(index)"
+          >cancel</mat-icon
+        >
+        <button
+          mat-mini-fab
+          [disabled]="file.processing != 'fail'"
+          aria-label="icon button"
+          [ngClass]="{ pointer: file.processing == 'fail' }"
+          (click)="retry(index)"
+        >
+          @if(file.processing == 'done') {
+          <mat-icon>description</mat-icon>
+          } @else if (file.processing == 'fail') {
+          <mat-icon class="fail">refresh</mat-icon>
+          }@else {
+          <mat-spinner diameter="20"></mat-spinner>
+          }
+        </button>
+        <span class="fileName">
+          <span>
+            {{ file.name }}
+          </span>
+          <span>
+            {{ file.type }}
+          </span>
+        </span>
+      </span>
+      }
+    </div>
+    }
+    <div
+      class="input-container"
+      [ngStyle]="{ 'margin-bottom': selectedFiles.length ? '15px' : '0px' }"
+    >
+      <mat-icon class="attach" (click)="ragAttach()">attach_file</mat-icon>
+      <input
+        type="file"
+        hidden
+        multiple
+        id="rag-file-attach"
+        (change)="uploadFile($event)"
+      />
+      <input
+        type="text"
+        name="follow-up"
+        id="followup"
+        (keyup.enter)="ragQuestion()"
+        placeholder="Ask a question"
+        [(ngModel)]="followupQues"
+      />
+      <button
+        mat-mini-fab
+        aria-label="send"
+        [disabled]="!followupQues.trim() || fileProcessing"
+        (click)="ragQuestion()"
+      >
+        <mat-icon svgIcon="aisend" class="sendIcon"></mat-icon>
+      </button>
+    </div>
+  </div>
+</div>

@@ -1,0 +1,385 @@
+.rag-page {
+    --mdc-circular-progress-active-indicator-color: var(--app-color);
+    --mdc-fab-container-color: var(--app-color);
+    padding-bottom: 42px;
+    height: calc(100% - 123px);
+    overflow: auto;
+
+    .rag-content {
+        height: calc(100% - 100px);
+        overflow: auto;
+        padding: 0px 40px;
+        padding-top: 30px;
+    }
+
+    .flex {
+        display: flex;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+
+    .questionHead {
+        font-size: 18px;
+        color: var(--text-primary-color);
+
+        mat-icon {
+            ::ng-deep path {
+                fill: var(--icon-color-secondary);
+            }
+        }
+    }
+
+    .fileList {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        gap: 10px;
+        padding-bottom: 10px;
+        .file {
+            border: 1px solid var(--input-border-color);
+            border-radius: 10px;
+            padding: 8px;
+            display: flex;
+            gap: 10px;
+            font-size: 12px;
+            align-items: center;
+            
+            button {
+                background: var(--app-color);
+            }
+            .fileName {
+                display: flex;
+                flex-direction: column;
+                gap: 2px;
+                color: var(--text-primary-color);
+
+                span:first-child {
+                    /* width: 100px;
+                    white-space: nowrap;
+                    overflow: hidden;
+                    text-overflow: ellipsis; */
+                    min-width: 100px;
+                    color: var(--dark);
+                    font-size: 14px;
+                }
+            }
+        }
+    }
+
+    .question {
+        color: var(--text-primary-color);
+        font-size: 25px;
+        font-weight: 500;
+    }
+
+    .answer-blog {
+        color: var(--text-secondary-color);
+    
+        .answerHead {
+          mat-icon {
+            ::ng-deep {
+              path {
+                fill: var(--text-secondary-color);
+                ;
+              }
+            }
+    
+            &.tagIcon,
+            &.answerIcon {
+              height: 17px;
+              width: 17px;
+            }
+    
+            &.chart-icon {
+              display: flex;
+              cursor: pointer;
+    
+              &.highlight {
+                color: var(--app-color);
+              }
+            }
+          }
+    
+          .header {
+            font-size: 17px;
+          }
+    
+          .time {
+            margin-left: auto;
+            font-size: 13px;
+          }
+        }
+    
+    
+        .answer {
+          color: var(--html-text-color);
+    
+          ::ng-deep p:first-child {
+            margin-block-start: 0px;
+          }
+        }
+    
+        .tags {
+          display: flex;
+          gap: 8px;
+          flex-wrap: wrap;
+          align-items: center;
+          // margin-left: auto;
+          margin-left: 40px;
+    
+          .tag {
+            border: 2px solid #CFCFCF;
+            color: #4D4D4D;
+            border-radius: 2px;
+            padding: 3px 9px;
+            font-size: 12px;
+            background: #F3F3EE;
+          }
+        }
+    
+        .copied {
+          display: flex;
+          justify-content: center;
+          align-items: center;
+          gap: 5px;
+          color: #8be78b;
+    
+          mat-icon {
+            ::ng-deep path {
+              fill: #8be78b;
+            }
+          }
+        }
+    
+    
+        .showSql {
+          cursor: pointer;
+          border: 1px solid var(--app-color);
+          padding: 3px;
+          font-size: 10px;
+          border-radius: 5px;
+          color: var(--app-color);
+    
+    
+          &.highlight {
+            background-color: var(--app-color);
+            color: #fff;
+            font-weight: normal;
+          }
+        }
+      }
+    
+      .icons {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        gap: 10px;
+        // border-bottom: 1px solid #cccdce;
+        padding-bottom: 15px;
+      
+        // margin-bottom: 25px;
+        mat-icon {
+          cursor: pointer;
+          padding: 2px;
+          width: 20px;
+          height: 20px;
+      
+          &:hover {
+            background-color: var(--side-menu-bg);
+            border-radius: 5px;
+          }
+      
+          &.filled {
+            ::ng-deep path {
+              fill: var(--app-color);
+            }
+          }
+          
+          &.th-icon {
+            ::ng-deep path {
+              fill: var(--icon-color-default);
+            }
+            ::ng-deep rect {
+              fill: var(--icon-color-default);
+            }
+          }
+      
+          &.delete {
+            ::ng-deep path:not(:last-child) {
+              fill: var(--icon-color-default);
+            }
+            ::ng-deep path:last-child {
+              stroke: var(--icon-color-default);
+            }
+          }
+      
+      
+        }
+      
+        .share {
+          flex: 1;
+          display: flex;
+          gap: 5px;
+      
+          span {
+            cursor: pointer;
+            display: flex;
+            gap: 7px;
+            padding: 5px;
+            align-items: center;
+      
+            &:hover {
+              background-color: var(--side-menu-bg);
+              border-radius: 5px;
+            }
+          }
+        }
+      }
+    .spinner {
+        display: flex;
+        justify-content: center;
+    }
+
+    .followup-container {
+        position: absolute;
+        bottom: 45px;
+        left: 35px;
+        width: calc(100% - 100px);
+        background: var(--input-bg-color);
+        border-radius: 15px;
+        min-height: 50px;
+        height: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+        padding: 5px 10px;
+        // align-items: center;
+        justify-content: center;
+        // cursor: move;
+        z-index: 1;
+        border: 3px solid var(--input-border-color);
+        transition: box-shadow 200ms cubic-bezier(0, 0, 0.2, 1);
+        box-shadow: 0 2px 5px 1px rgba(64, 60, 67, .16);
+
+        &:hover {
+            background: var(--input-bg-color);
+            box-shadow: 0 2px 8px 1px rgba(64, 60, 67, .24);
+            border-color: transparent;
+        }
+
+
+        .input-container {
+            display: flex;
+            flex-direction: row;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .attachedFiles {
+            padding: 5px;
+            display: flex;
+            flex-direction: row;
+            flex-wrap: wrap;
+            gap: 10px;
+
+            .file {
+                border: 1px solid var(--input-border-color);
+                border-radius: 15px;
+                padding: 5px 10px;
+                display: flex;
+                gap: 10px;
+                position: relative;
+                font-size: 12px;
+                align-items: center;
+
+                .pointer {
+                    cursor: pointer;
+                }
+
+                .fileName {
+                    display: flex;
+                    flex-direction: column;
+                    gap: 2px;
+                    color: var(--text-primary-color);
+
+                    span:first-child {
+                        width: 100px;
+                        white-space: nowrap;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
+                        color: var(--dark);
+                        font-size: 14px;
+                    }
+                }
+
+                .cancelIcon {
+                    display: none;
+                    position: absolute;
+                    top: -11px;
+                    right: -10px;
+                    cursor: pointer;
+                    color: #CFCFCF;
+                }
+
+                .fail {
+                    color: red;
+                    cursor: pointer;
+                }
+
+                &:hover {
+                    .cancelIcon {
+                        display: block;
+                    }
+                }
+            }
+        }
+
+        .attach {
+            // padding-left: 10px;
+            color: grey;
+            cursor: pointer;
+        }
+
+        #followup {
+            border: none;
+            flex: 1;
+            outline: none;
+            font-size: 16px;
+            width: 100%;
+            //   padding-left: 20px;
+            background: var(--input-bg-color);
+            color: var(--dark);
+        }
+
+        button {
+            --mdc-circular-progress-active-indicator-color: var(--app-color);
+            background-color: var(--input-btn-bg-color);
+            box-shadow: none;
+
+            .sendIcon {
+                margin-top: 5px;
+                margin-right: 5px;
+            }
+
+            //::ng-deep only changed the icon color otherwise we can't able to change the color
+            &:disabled {
+                ::ng-deep .sendIcon {
+                    path {
+                        fill: var(--input-disabled);
+                    }
+                }
+            }
+        }
+
+    }
+
+}
+
+::ng-deep .mdc-tooltip {
+    font-size: 11px !important;
+
+    .mdc-tooltip__surface {
+        background: black !important;
+    }
+}

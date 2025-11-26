@@ -1,0 +1,8 @@
+<h2 mat-dialog-title class="title">Delete Chat?</h2>
+<mat-dialog-content>
+    {{data.question}}
+  </mat-dialog-content>
+  <mat-dialog-actions align="end">
+    <button mat-button mat-dialog-close>Cancel</button>
+    <button mat-button cdkFocusInitial (click)="DeleteQuestion()" class="delete">Delete</button>
+  </mat-dialog-actions>

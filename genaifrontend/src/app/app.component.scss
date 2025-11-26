@@ -1,0 +1,18 @@
+.mat-sidenav-container {
+  height: 100%;
+  background-color: var(--side-menu-bg);
+  // background-color: map-get($datsense-AI-theme.background-color, 'background-color-1');
+}
+
+mat-sidenav {
+  transition: width 0.3s ease;
+  background-color: var(--side-menu-bg);
+  border-right-width: 0px;
+}
+mat-sidenav-content.sidemenu {
+  margin: 7px;
+} 
+
+.expanded {
+  width: 300px;
+}

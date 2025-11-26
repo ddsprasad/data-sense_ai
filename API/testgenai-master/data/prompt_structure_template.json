@@ -1,0 +1,142 @@
+{
+  "prompt_template_version": "2.0",
+  "description": "Generic prompt structure for SQL generation across any domain",
+
+  "sections": {
+    "role_definition": {
+      "order": 1,
+      "template": "You are an expert {database_type} query generator for {domain_description}. Your task is to analyze natural language questions and generate accurate, optimized {database_type} queries.",
+      "required_vars": ["database_type", "domain_description"]
+    },
+
+    "database_context": {
+      "order": 2,
+      "subsections": {
+        "available_data_period": {
+          "template": "### Available Data Period\n{data_period_info}",
+          "source": "date_range.json"
+        },
+        "database_structure": {
+          "template": "### Database Structure\nThe database follows a {schema_type} with:\n{structure_info}",
+          "source": "database_documentation.json"
+        },
+        "business_domain": {
+          "template": "### Business Domain\n{domain_context}",
+          "source": "business_logic_rules.json"
+        }
+      }
+    },
+
+    "table_relationships": {
+      "order": 3,
+      "template": "## TABLE RELATIONSHIPS & USAGE\n\n{table_details}",
+      "source": "database_documentation.json + business_logic_rules.json",
+      "include": [
+        "dimension_tables_with_usage",
+        "fact_tables_with_measures",
+        "join_patterns"
+      ]
+    },
+
+    "business_logic_rules": {
+      "order": 4,
+      "template": "## BUSINESS LOGIC RULES\n\n{business_rules}",
+      "source": "business_logic_rules.json",
+      "dynamic": true,
+      "include_sql_patterns": true
+    },
+
+    "keyword_mapping": {
+      "order": 5,
+      "template": "## KEYWORD TO TABLE MAPPING\n\nUse these mappings to identify relevant tables:\n{keyword_mappings}",
+      "source": "business_logic_rules.json",
+      "format": "bullet_list"
+    },
+
+    "common_metrics": {
+      "order": 6,
+      "template": "## COMMON METRICS & FORMULAS\n\n{metric_definitions}",
+      "source": "business_logic_rules.json",
+      "include_sql_examples": true
+    },
+
+    "database_syntax": {
+      "order": 7,
+      "template": "## {database_type} SPECIFIC SYNTAX\n\n{syntax_rules}",
+      "source": "sql_generation_rules.json",
+      "include_examples": true
+    },
+
+    "date_handling": {
+      "order": 8,
+      "template": "## DATE HANDLING RULES\n\n{date_patterns}",
+      "source": "business_logic_rules.json + date_range.json",
+      "include_sql_examples": true
+    },
+
+    "query_generation_process": {
+      "order": 9,
+      "template": "## QUERY GENERATION PROCESS\n\n{step_by_step_guide}",
+      "source": "business_logic_rules.json",
+      "format": "numbered_list"
+    },
+
+    "output_format": {
+      "order": 10,
+      "template": "## OUTPUT FORMAT\n\nFor each question, provide:\n1. **Query Explanation** (brief summary)\n2. **SQL Query** (complete, executable {database_type})\n3. **Key Assumptions** (assumptions made)",
+      "required_vars": ["database_type"]
+    },
+
+    "examples": {
+      "order": 11,
+      "template": "## EXAMPLE INTERACTIONS\n\n{example_queries}",
+      "source": "examples.json (optional)",
+      "dynamic": true
+    },
+
+    "validation_checklist": {
+      "order": 12,
+      "template": "## VALIDATION CHECKLIST\n\nBefore providing a query, verify:\n{checklist_items}",
+      "source": "sql_generation_rules.json",
+      "format": "checkbox_list"
+    },
+
+    "error_handling": {
+      "order": 13,
+      "template": "## ERROR HANDLING\n\n{error_handling_rules}",
+      "static": true
+    }
+  },
+
+  "assembly_instructions": {
+    "1": "Load all JSON configuration files from data/ directory",
+    "2": "Populate template variables with data from JSON files",
+    "3": "Assemble sections in order specified",
+    "4": "Apply formatting rules (bullet_list, numbered_list, checkbox_list)",
+    "5": "Include SQL examples where specified",
+    "6": "Return complete prompt string"
+  },
+
+  "customization_guide": {
+    "for_new_domain": {
+      "step_1": "Update business_logic_rules.json with domain-specific rules",
+      "step_2": "Update database_documentation.json with schema details",
+      "step_3": "Update date_range.json with available data periods",
+      "step_4": "Optionally create examples.json with domain-specific examples",
+      "step_5": "Run prompt assembly - no code changes needed"
+    },
+    "for_new_database_type": {
+      "step_1": "Update sql_generation_rules.json with new database syntax",
+      "step_2": "Update database_type in business_logic_rules.json",
+      "step_3": "Run prompt assembly"
+    }
+  },
+
+  "quality_standards": {
+    "clarity": "Each section should be self-contained and clear",
+    "examples": "Include SQL examples for complex patterns",
+    "maintainability": "All domain knowledge in JSON, not in code",
+    "extensibility": "Easy to add new sections without code changes",
+    "consistency": "Use consistent formatting across all sections"
+  }
+}

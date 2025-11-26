@@ -1,0 +1,237 @@
+{
+  "domain": "Credit Union Banking",
+  "domain_description": "DataSense Credit Union - Member banking, lending, and credit risk management",
+
+  "organization_identity": {
+    "our_name": "Our Credit Union",
+    "description": "When user says 'us', 'our', 'we', 'with us', 'our members', 'our loans' - they mean Our Credit Union",
+    "sql_patterns": {
+      "loans_with_us": "resulted_in_our_loan = 1",
+      "loans_not_with_us": "resulted_in_our_loan = 0",
+      "lost_to_competitor": "resulted_in_our_loan = 0 AND competitor_key IS NOT NULL",
+      "still_shopping": "resulted_in_our_loan = 0 AND competitor_key IS NULL",
+      "our_members": "FROM dim_member (any member in our system)",
+      "inquiring_lender_is_us": "inquiring_lender = 'Our Credit Union'"
+    },
+    "competitor_identification": {
+      "description": "Any lender that is NOT 'Our Credit Union' is a competitor",
+      "competitor_table": "dim_competitor",
+      "competitor_key_usage": "competitor_key IS NOT NULL means member went to a competitor"
+    }
+  },
+
+  "business_rules": {
+    "new_member_acquisition": {
+      "description": "Identify accounts opened by new members",
+      "sql_pattern": "Check schema for member relationship/tenure columns",
+      "explanation": "New member definition depends on available columns in fact_account_opening and dim_member tables"
+    },
+    "active_members": {
+      "description": "Filter for currently active member records",
+      "sql_pattern": "is_current = 1",
+      "table": "dim_member"
+    },
+    "active_branches": {
+      "description": "Filter for active branch locations",
+      "sql_pattern": "is_current = 1 AND is_active = 1",
+      "table": "dim_branch"
+    },
+    "active_products": {
+      "description": "Filter for active products",
+      "sql_pattern": "is_active = 1",
+      "table": "dim_product"
+    },
+    "active_accounts": {
+      "description": "Filter for open/active accounts",
+      "sql_pattern": "account_status = 'Active'",
+      "tables": ["fact_account_opening", "fact_account_balance"]
+    },
+    "cross_sell_rate": {
+      "description": "Measure members who opened additional products within a time period",
+      "sql_pattern": "Use CTE with ROW_NUMBER() to identify first vs subsequent accounts",
+      "critical_note": "bridge_member_product may NOT have date columns - use fact_account_opening for time-based cross-sell analysis",
+      "critical_warning": "fact_account_opening does NOT have 'account_opening_sequence' column - use ROW_NUMBER() to determine sequence",
+      "recommended_approach": "CTE with ROW_NUMBER() OVER (PARTITION BY member_key ORDER BY open_date_key) to rank account openings, then filter for additional accounts within N days of first account",
+      "example_sql": "WITH ranked_accounts AS (SELECT *, ROW_NUMBER() OVER (PARTITION BY member_key ORDER BY open_date_key) as account_rank FROM fact_account_opening) SELECT COUNT(DISTINCT CASE WHEN account_rank > 1 THEN member_key END) / COUNT(DISTINCT CASE WHEN account_rank = 1 THEN member_key END) as cross_sell_rate FROM ranked_accounts"
+    }
+  },
+
+  "date_patterns": {
+    "latest_available_date": {
+      "description": "Data ends on December 31, 2024",
+      "sql_pattern": "'2024-12-31'",
+      "critical_rule": "NEVER use GETDATE() - it returns current system date which is beyond available data"
+    },
+    "current_quarter": {
+      "description": "Q4 2024 (October, November, December)",
+      "sql_pattern": "d.year = 2024 AND d.quarter = 4",
+      "note": "Always use dim_date for date filtering"
+    },
+    "current_year": {
+      "description": "Year 2024 (YTD)",
+      "sql_pattern": "d.year = 2024"
+    },
+    "last_30_days": {
+      "description": "Last 30 days from December 31, 2024",
+      "sql_pattern": "d.full_date >= DATEADD(DAY, -30, CAST('2024-12-31' AS DATE))",
+      "wrong_pattern": "d.full_date >= DATEADD(DAY, -30, GETDATE())",
+      "note": "Use '2024-12-31' NOT GETDATE()"
+    },
+    "last_90_days": {
+      "description": "Last 90 days from December 31, 2024",
+      "sql_pattern": "d.full_date >= DATEADD(DAY, -90, CAST('2024-12-31' AS DATE))",
+      "wrong_pattern": "d.full_date >= DATEADD(DAY, -90, GETDATE())",
+      "note": "Use '2024-12-31' NOT GETDATE()"
+    },
+    "last_month": {
+      "description": "Last month from December 31, 2024",
+      "sql_pattern": "d.full_date >= DATEADD(MONTH, -1, CAST('2024-12-31' AS DATE))",
+      "wrong_pattern": "d.full_date >= DATEADD(MONTH, -1, GETDATE())",
+      "note": "Use '2024-12-31' NOT GETDATE()"
+    }
+  },
+
+  "keyword_to_table_mapping": {
+    "members": ["dim_member", "fact_member_relationship"],
+    "customers": ["dim_member"],
+    "account_holders": ["dim_member"],
+    "branches": ["dim_branch"],
+    "locations": ["dim_branch"],
+    "offices": ["dim_branch"],
+    "products": ["dim_product", "bridge_member_product"],
+    "accounts": ["dim_product", "fact_account_opening", "fact_account_balance"],
+    "account_types": ["dim_product"],
+    "loans": ["fact_loan_origination", "fact_loan_payment"],
+    "lending": ["fact_loan_origination", "fact_loan_payment"],
+    "new_loans": ["fact_loan_origination"],
+    "loan_payments": ["fact_loan_payment"],
+    "repayment": ["fact_loan_payment"],
+    "credit_scores": ["fact_credit_score"],
+    "FICO": ["fact_credit_score"],
+    "credit_rating": ["fact_credit_score"],
+    "credit_inquiries": ["fact_credit_inquiry"],
+    "credit_checks": ["fact_credit_inquiry"],
+    "deposits": ["fact_account_balance"],
+    "balances": ["fact_account_balance"],
+    "new_accounts": ["fact_account_opening"],
+    "account_openings": ["fact_account_opening"],
+    "retention": ["fact_member_relationship"],
+    "churn": ["fact_member_relationship"],
+    "attrition": ["fact_member_relationship"],
+    "lifetime_value": ["fact_member_relationship"],
+    "LTV": ["fact_member_relationship"],
+    "cross_sell": ["bridge_member_product"],
+    "product_holdings": ["bridge_member_product"],
+    "competitors": ["dim_competitor", "fact_market_data"],
+    "market_analysis": ["fact_market_data"]
+  },
+
+  "common_metrics": {
+    "new_member_acquisition": {
+      "description": "Count of new members who opened accounts",
+      "formula": "COUNT(DISTINCT member_key)",
+      "from_table": "fact_account_opening",
+      "filter": "(cross_sell_indicator = 0 OR days_since_membership <= 30)",
+      "group_by_examples": ["branch", "product", "month"]
+    },
+    "total_deposits": {
+      "description": "Total amount in member accounts",
+      "formula": "SUM(current_balance)",
+      "from_table": "fact_account_balance",
+      "filter": "account_status = 'Active'"
+    },
+    "average_balance_per_member": {
+      "description": "Average account balance per member",
+      "formula": "SUM(current_balance) / COUNT(DISTINCT member_key)",
+      "from_table": "fact_account_balance"
+    },
+    "loan_origination_volume": {
+      "description": "Total loan amount originated",
+      "formula": "SUM(loan_amount)",
+      "from_table": "fact_loan_origination"
+    },
+    "average_loan_amount": {
+      "description": "Average size of loans",
+      "formula": "AVG(loan_amount)",
+      "from_table": "fact_loan_origination"
+    },
+    "average_credit_score": {
+      "description": "Average member credit score",
+      "formula": "AVG(credit_score)",
+      "from_table": "fact_credit_score"
+    },
+    "products_per_member": {
+      "description": "Cross-sell metric - average products per member",
+      "formula": "COUNT(DISTINCT product_key) / COUNT(DISTINCT member_key)",
+      "from_table": "bridge_member_product"
+    },
+    "member_lifetime_value": {
+      "description": "Total value of member relationship",
+      "formula": "Direct from lifetime_value column",
+      "from_table": "fact_member_relationship"
+    },
+    "deposit_growth_rate": {
+      "description": "Rate of deposit growth over time periods",
+      "formula": "(Current_Balance - Previous_Balance) / Previous_Balance * 100",
+      "from_table": "fact_account_balance",
+      "requires_cte": true
+    }
+  },
+
+  "table_usage_patterns": {
+    "dim_member": {
+      "usage": "Join with fact tables to get member names and demographics instead of just member IDs",
+      "always_filter": "is_current = 1 for current member records",
+      "common_columns": ["member_key", "first_name", "last_name", "member_since_date", "relationship_tier"]
+    },
+    "dim_branch": {
+      "usage": "Join with fact tables to get branch names and locations instead of just branch IDs",
+      "always_filter": "is_current = 1 AND is_active = 1 for active branches",
+      "common_columns": ["branch_key", "branch_name", "region", "metro_area", "state"]
+    },
+    "dim_product": {
+      "usage": "Join with fact tables to get product names and categories instead of just product IDs",
+      "always_filter": "is_active = 1 for active products",
+      "common_columns": ["product_key", "product_name", "product_category", "product_type"]
+    },
+    "dim_date": {
+      "usage": "ALWAYS use this for date filtering and time-based grouping",
+      "join_pattern": "INNER JOIN dim_date d ON fact.date_key = d.date_key",
+      "common_columns": ["date_key", "full_date", "year", "quarter", "month_number", "month_name"]
+    },
+    "fact_account_opening": {
+      "primary_use": "Track new member acquisition, branch performance, product popularity",
+      "key_measures": ["COUNT of new accounts", "SUM of initial deposits"],
+      "important_columns": ["member_key", "product_key", "branch_key", "initial_deposit_amount", "cross_sell_indicator"]
+    },
+    "fact_account_balance": {
+      "primary_use": "Track deposit growth, member value, portfolio composition",
+      "key_measures": ["Total deposits", "Average balance per member"],
+      "important_columns": ["member_key", "product_key", "current_balance", "average_balance_30d"]
+    },
+    "fact_loan_origination": {
+      "primary_use": "Track lending volume, loan performance, origination trends",
+      "key_measures": ["Total loans originated", "Average loan amount"],
+      "important_columns": ["member_key", "product_key", "loan_amount", "interest_rate", "term_months"]
+    },
+    "fact_member_relationship": {
+      "primary_use": "Member segmentation, retention analysis, value-based marketing",
+      "key_measures": ["Average lifetime value", "Retention rates"],
+      "important_columns": ["member_key", "lifetime_value", "attrition_risk_score", "number_of_products"]
+    },
+    "bridge_member_product": {
+      "primary_use": "Track member-product relationships for cross-sell analysis",
+      "key_measures": ["Products per member", "Cross-sell rate"],
+      "important_columns": ["member_key", "product_key"],
+      "critical_warning": "Check CREATE TABLE for exact columns - may NOT have date columns. Use fact_account_opening for date-based analysis."
+    }
+  },
+
+  "query_generation_guidelines": {
+    "step_1_analyze": "Extract entities, metrics, time periods, filters, and grouping requirements",
+    "step_2_identify_tables": "Use keyword mapping to find relevant fact and dimension tables",
+    "step_3_build_query": "Start with fact table, add JOINs, WHERE, GROUP BY, ORDER BY",
+    "step_4_apply_rules": "Apply business rules for new members, active records, date filters",
+    "step_5_optimize": "Use indexed columns, avoid functions on indexes, limit results with TOP N"
+  }
+}

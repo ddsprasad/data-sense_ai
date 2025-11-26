@@ -1,0 +1,132 @@
+[
+  {
+    "keywords": "dates",
+    "tables": "dim_date",
+    "related_keywords": "calendar|time periods|date filtering|year|month|quarter"
+  },
+  {
+    "keywords": "time periods",
+    "tables": "dim_date",
+    "related_keywords": "dates|quarters|months|years|this quarter|last month"
+  },
+  {
+    "keywords": "members",
+    "tables": "dim_member",
+    "related_keywords": "customer demographics|customers|account holders"
+  },
+  {
+    "keywords": "member demographics",
+    "tables": "dim_member",
+    "related_keywords": "members|customer profile|member info"
+  },
+  {
+    "keywords": "branches",
+    "tables": "dim_branch",
+    "related_keywords": "locations|offices|branch offices"
+  },
+  {
+    "keywords": "branch locations",
+    "tables": "dim_branch",
+    "related_keywords": "branches|office locations"
+  },
+  {
+    "keywords": "branch performance",
+    "tables": "dim_branch",
+    "related_keywords": "top branches|branch metrics|branch analysis"
+  },
+  {
+    "keywords": "products",
+    "tables": "dim_product",
+    "related_keywords": "accounts|financial products|account types"
+  },
+  {
+    "keywords": "account products",
+    "tables": "dim_product",
+    "related_keywords": "products|product types"
+  },
+  {
+    "keywords": "loans",
+    "tables": "fact_loan_origination",
+    "related_keywords": "lending|new loans|loan applications"
+  },
+  {
+    "keywords": "loan originations",
+    "tables": "fact_loan_origination",
+    "related_keywords": "loans|loan openings"
+  },
+  {
+    "keywords": "loan payments",
+    "tables": "fact_loan_payment",
+    "related_keywords": "lending|loan repayment|payment history"
+  },
+  {
+    "keywords": "credit scores",
+    "tables": "fact_credit_score",
+    "related_keywords": "credit|FICO|credit rating"
+  },
+  {
+    "keywords": "credit inquiries",
+    "tables": "fact_credit_inquiry",
+    "related_keywords": "credit|credit checks|credit pulls"
+  },
+  {
+    "keywords": "credit bureau data",
+    "tables": "fact_bureau_tradeline",
+    "related_keywords": "credit|tradelines|credit history"
+  },
+  {
+    "keywords": "credit bureaus",
+    "tables": "dim_credit_bureau",
+    "related_keywords": "Experian|Equifax|TransUnion"
+  },
+  {
+    "keywords": "account balances",
+    "tables": "fact_account_balance",
+    "related_keywords": "accounts|balance sheet|deposits"
+  },
+  {
+    "keywords": "account openings",
+    "tables": "fact_account_opening, dim_date, dim_branch, dim_member, dim_product",
+    "related_keywords": "accounts|new accounts|account growth"
+  },
+  {
+    "keywords": "new member acquisition",
+    "tables": "fact_account_opening, dim_date, dim_branch, dim_member",
+    "related_keywords": "growth|member growth|new members|this quarter|top branches"
+  },
+  {
+    "keywords": "member products",
+    "tables": "bridge_member_product",
+    "related_keywords": "products|cross-sell|product holdings"
+  },
+  {
+    "keywords": "market data",
+    "tables": "fact_market_data",
+    "related_keywords": "competition|market analysis"
+  },
+  {
+    "keywords": "competitors",
+    "tables": "dim_competitor",
+    "related_keywords": "market|competitive analysis|other banks"
+  },
+  {
+    "keywords": "member relationships",
+    "tables": "fact_member_relationship",
+    "related_keywords": "members|member value|customer relationships"
+  },
+  {
+    "keywords": "retention",
+    "tables": "fact_member_relationship",
+    "related_keywords": "loyalty|churn|attrition|member retention"
+  },
+  {
+    "keywords": "lifetime value",
+    "tables": "fact_member_relationship",
+    "related_keywords": "LTV|customer value|member worth"
+  },
+  {
+    "keywords": "quarterly performance",
+    "tables": "fact_account_balance",
+    "related_keywords": "Q1|Q2|Q3|Q4|quarterly results|quarter"
+  }
+]

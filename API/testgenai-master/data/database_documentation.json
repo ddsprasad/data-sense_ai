@@ -1,0 +1,190 @@
+[
+  {
+    "section": "Process Flow",
+    "content": "Members open accounts at branches. Members can hold multiple products (accounts). Members apply for and receive loans. Loan payments are tracked over time. Credit bureau data (Experian, Equifax, TransUnion) is collected for members. Credit inquiries and scores are tracked. Account balances are monitored daily/monthly. Member relationships are analyzed for lifetime value and retention. Market data tracks competitive landscape."
+  },
+  {
+    "section": "Data Subjects - Member Management",
+    "content": "Member demographics, relationship tiers, member lifecycle"
+  },
+  {
+    "section": "Data Subjects - Branch Operations",
+    "content": "Branch locations, performance metrics, branch-level analysis"
+  },
+  {
+    "section": "Data Subjects - Product Management",
+    "content": "Account types (savings, checking, loans), product holdings"
+  },
+  {
+    "section": "Data Subjects - Lending Operations",
+    "content": "Loan originations, loan payments, loan performance"
+  },
+  {
+    "section": "Data Subjects - Credit Risk Management",
+    "content": "Credit scores, credit inquiries, bureau tradelines"
+  },
+  {
+    "section": "Data Subjects - Member Relationships",
+    "content": "Member lifetime value, retention, relationship quality"
+  },
+  {
+    "section": "Data Subjects - Market Intelligence",
+    "content": "Competitor data, market trends, competitive analysis"
+  },
+  {
+    "section": "Relationships - dim_member",
+    "content": "One-to-many with fact_account_opening (member_key), fact_account_balance (member_key), fact_loan_origination (member_key), fact_loan_payment (member_key), fact_credit_score (member_key), fact_credit_inquiry (member_key), fact_bureau_tradeline (member_key), fact_member_relationship (member_key), bridge_member_product (member_key)"
+  },
+  {
+    "section": "Relationships - dim_branch",
+    "content": "One-to-many with fact_account_opening (branch_key), fact_account_balance (branch_key), fact_loan_origination (branch_key)"
+  },
+  {
+    "section": "Relationships - dim_product",
+    "content": "One-to-many with fact_account_opening (product_key), fact_account_balance (product_key), bridge_member_product (product_key)"
+  },
+  {
+    "section": "Relationships - dim_credit_bureau",
+    "content": "One-to-many with fact_credit_score (bureau_key), fact_credit_inquiry (bureau_key), fact_bureau_tradeline (bureau_key)"
+  },
+  {
+    "section": "Relationships - dim_date",
+    "content": "One-to-many with fact_account_opening (open_date_key), fact_account_balance (balance_date_key), fact_loan_origination (origination_date_key), fact_loan_payment (payment_date_key), fact_credit_score (score_date_key), fact_credit_inquiry (inquiry_date_key)"
+  },
+  {
+    "section": "Relationships - dim_competitor",
+    "content": "One-to-many with fact_market_data (competitor_key)"
+  },
+  {
+    "section": "Table - dim_member",
+    "content": "Member demographic and profile information. Key columns: member_key (PK), first_name, last_name, date_of_birth, join_date, relationship_tier, is_current. Usage: Join with fact tables to get member names and demographics instead of just member IDs."
+  },
+  {
+    "section": "Table - dim_branch",
+    "content": "Branch location and operational details. Key columns: branch_key (PK), branch_name, branch_code, city, state, region, is_current. Usage: Join with fact tables to get branch names and locations instead of just branch IDs."
+  },
+  {
+    "section": "Table - dim_product",
+    "content": "Product and account type definitions. Key columns: product_key (PK), product_name, product_type, product_category, interest_rate, is_current. Usage: Join with fact tables to get product names instead of just product IDs."
+  },
+  {
+    "section": "Table - dim_credit_bureau",
+    "content": "Credit bureau reference data (Experian, Equifax, TransUnion). Key columns: bureau_key (PK), bureau_name, bureau_code. Usage: Join with credit-related fact tables to identify which bureau provided the data."
+  },
+  {
+    "section": "Table - dim_date",
+    "content": "Date dimension for time-based analysis. Key columns: date_key (PK), full_date, year, quarter, month, month_name, day_of_week, is_weekend. Usage: Join with fact tables for date filtering and time-based grouping."
+  },
+  {
+    "section": "Table - dim_competitor",
+    "content": "Competitor financial institution information. Key columns: competitor_key (PK), competitor_name, competitor_type. Usage: Join with fact_market_data for competitive analysis."
+  },
+  {
+    "section": "Table - fact_account_opening",
+    "content": "Records each new account opened by members. Key columns: account_opening_key (PK), member_key (FK), branch_key (FK), product_key (FK), open_date_key (FK), initial_deposit_amount. DOES NOT HAVE: account_opening_sequence column (use ROW_NUMBER() instead). Measures: Count of new accounts, total initial deposits. Usage: Track new member acquisition, branch performance, product popularity. For cross-sell analysis: Use ROW_NUMBER() OVER (PARTITION BY member_key ORDER BY open_date_key) to determine account sequence."
+  },
+  {
+    "section": "Table - fact_account_balance",
+    "content": "Daily or periodic snapshot of account balances. Key columns: balance_key (PK), member_key (FK), product_key (FK), branch_key (FK), balance_date_key (FK), balance_amount. Measures: Total deposits, average balance per member, balance growth. Usage: Track deposit growth, member value, portfolio composition."
+  },
+  {
+    "section": "Table - fact_loan_origination",
+    "content": "Records each new loan issued. Key columns: loan_origination_key (PK), member_key (FK), branch_key (FK), origination_date_key (FK), loan_amount, interest_rate, loan_term_months. Measures: Total loans originated, average loan amount. Usage: Track lending volume, loan performance, origination trends."
+  },
+  {
+    "section": "Table - fact_loan_payment",
+    "content": "Records each loan payment made by members. Key columns: loan_payment_key (PK), loan_origination_key (FK), member_key (FK), payment_date_key (FK), payment_amount, principal_amount, interest_amount. Measures: Total payments, delinquency rates. Usage: Track loan repayment, identify delinquencies, payment patterns."
+  },
+  {
+    "section": "Table - fact_credit_score",
+    "content": "Member credit scores from bureaus. Key columns: credit_score_key (PK), member_key (FK), bureau_key (FK), score_date_key (FK), credit_score. Measures: Average credit score, score distribution. Usage: Risk assessment, credit quality monitoring, lending decisions."
+  },
+  {
+    "section": "Table - fact_credit_inquiry",
+    "content": "Credit inquiries (hard pulls) for members. Key columns: credit_inquiry_key (PK), member_key (FK), bureau_key (FK), inquiry_date_key (FK), inquiry_type, inquiry_reason. Measures: Count of inquiries. Usage: Track credit-seeking behavior, loan application funnel."
+  },
+  {
+    "section": "Table - fact_bureau_tradeline",
+    "content": "Detailed credit history from bureaus. Key columns: tradeline_key (PK), member_key (FK), bureau_key (FK), account_type, balance_amount, credit_limit, payment_status. Measures: Total credit exposure, utilization rates. Usage: Detailed credit risk analysis, debt-to-income calculations."
+  },
+  {
+    "section": "Table - fact_member_relationship",
+    "content": "Member lifetime value and relationship quality metrics. Key columns: relationship_key (PK), member_key (FK), relationship_start_date_key (FK), lifetime_value, relationship_score, retention_probability. Measures: Average lifetime value, retention rates. Usage: Member segmentation, retention analysis, value-based marketing."
+  },
+  {
+    "section": "Table - fact_market_data",
+    "content": "Competitive market intelligence. Key columns: market_data_key (PK), competitor_key (FK), data_date_key (FK), metric_name, metric_value. Measures: Market share comparisons, competitive positioning. Usage: Competitive analysis, market benchmarking."
+  },
+  {
+    "section": "Table - bridge_member_product",
+    "content": "Many-to-many relationship between members and products. Key columns: member_key (FK), product_key (FK), relationship_start_date. Usage: Track cross-sell opportunities, product holdings per member."
+  },
+  {
+    "section": "Tables List",
+    "content": "dim_member, dim_branch, dim_product, dim_credit_bureau, dim_date, dim_competitor, fact_account_opening, fact_account_balance, fact_loan_origination, fact_loan_payment, fact_credit_score, fact_credit_inquiry, fact_bureau_tradeline, fact_member_relationship, fact_market_data, bridge_member_product"
+  },
+  {
+    "section": "Metric - New Member Acquisition",
+    "content": "The number of new members who opened accounts in a given period. Formula: COUNT(DISTINCT member_key) FROM fact_account_opening. Tables: fact_account_opening, dim_member, dim_branch. Usage: Track growth, measure branch performance, evaluate marketing campaigns."
+  },
+  {
+    "section": "Metric - Total Deposits",
+    "content": "Total amount held in member accounts. Formula: SUM(balance_amount) FROM fact_account_balance. Tables: fact_account_balance, dim_product, dim_member. Usage: Measure deposit growth, assess liquidity, track portfolio size."
+  },
+  {
+    "section": "Metric - Average Balance Per Member",
+    "content": "Average account balance across all members. Formula: SUM(balance_amount) / COUNT(DISTINCT member_key) FROM fact_account_balance. Tables: fact_account_balance, dim_member. Usage: Assess member value, segment members by balance."
+  },
+  {
+    "section": "Metric - Loan Origination Volume",
+    "content": "Total dollar amount of loans originated in a period. Formula: SUM(loan_amount) FROM fact_loan_origination. Tables: fact_loan_origination, dim_member, dim_branch. Usage: Track lending growth, assess branch lending performance."
+  },
+  {
+    "section": "Metric - Average Loan Amount",
+    "content": "Average size of loans originated. Formula: AVG(loan_amount) FROM fact_loan_origination. Tables: fact_loan_origination. Usage: Understand loan portfolio composition, risk assessment."
+  },
+  {
+    "section": "Metric - Loan Payment Rate",
+    "content": "Percentage of on-time loan payments. Formula: (COUNT of on-time payments / COUNT of total payments) * 100. Tables: fact_loan_payment, fact_loan_origination. Usage: Assess loan quality, identify delinquency trends."
+  },
+  {
+    "section": "Metric - Average Credit Score",
+    "content": "Average credit score of members. Formula: AVG(credit_score) FROM fact_credit_score. Tables: fact_credit_score, dim_member, dim_credit_bureau. Usage: Assess member credit quality, portfolio risk."
+  },
+  {
+    "section": "Metric - Member Lifetime Value",
+    "content": "Total value a member brings to the organization over their lifetime. Formula: Direct from fact_member_relationship.lifetime_value. Tables: fact_member_relationship, dim_member. Usage: Member segmentation, retention strategies, marketing ROI."
+  },
+  {
+    "section": "Metric - Member Retention Rate",
+    "content": "Percentage of members retained over a period. Formula: (COUNT of members at end - new members) / COUNT at start * 100. Tables: fact_member_relationship, dim_member. Usage: Measure loyalty, assess retention programs."
+  },
+  {
+    "section": "Metric - Products Per Member",
+    "content": "Average number of products held by each member. Formula: COUNT(DISTINCT product_key) / COUNT(DISTINCT member_key) FROM bridge_member_product. Tables: bridge_member_product, dim_member, dim_product. Usage: Measure cross-sell success, identify upsell opportunities."
+  },
+  {
+    "section": "Metric - Branch Performance Score",
+    "content": "Ranking branches by new member acquisition. Formula: COUNT(DISTINCT member_key) FROM fact_account_opening GROUP BY branch_key. Tables: fact_account_opening, dim_branch. Usage: Identify top performing branches, allocate resources."
+  },
+  {
+    "section": "Metric - Deposit Growth Rate",
+    "content": "Rate of deposit balance growth over time. Formula: (Current period balance - Previous period balance) / Previous period balance * 100. Tables: fact_account_balance, dim_date. Usage: Track portfolio growth, assess deposit strategies."
+  },
+  {
+    "section": "Metric - Credit Utilization Rate",
+    "content": "Percentage of available credit being used by members. Formula: SUM(balance_amount) / SUM(credit_limit) * 100 FROM fact_bureau_tradeline. Tables: fact_bureau_tradeline, dim_member. Usage: Assess credit risk, lending capacity."
+  },
+  {
+    "section": "Metric - Loan-to-Deposit Ratio",
+    "content": "Ratio of total loans to total deposits. Formula: SUM(loan_amount) / SUM(deposit_amount). Tables: fact_loan_origination, fact_account_balance. Usage: Assess liquidity, regulatory compliance, lending capacity."
+  },
+  {
+    "section": "Metric - Member Churn Rate",
+    "content": "Rate at which members close all accounts and leave. Formula: (Members lost / Total members at start) * 100. Tables: fact_member_relationship, dim_member. Usage: Identify retention issues, measure satisfaction."
+  },
+  {
+    "section": "Metric - Market Share",
+    "content": "Share of deposits/loans relative to competitors. Formula: Our metric / (Our metric + SUM of competitor metrics) * 100. Tables: fact_market_data, dim_competitor. Usage: Competitive positioning, strategic planning."
+  }
+]

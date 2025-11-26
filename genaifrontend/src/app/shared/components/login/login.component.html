@@ -1,0 +1,27 @@
+<div class="log-in">
+    <form [formGroup]="loginForm" (ngSubmit)="loginFormSubmit()">
+        <div class="image">
+            <img src="./../../../../assets/icons/sidemenu/Logo.svg" alt="" srcset="">
+        </div>
+        <div class="card">
+            <div class="title">Login</div>
+            <!-- <input formControlName="email" type="email" name="email" id="" class="input" placeholder="Email address"> -->
+            <input formControlName="username" type="text" name="username" id="" class="input" placeholder="User name">
+            <div>
+                <input formControlName="password" type="password" name="password" class="input" placeholder="Password">
+                <!-- <div class="forgot">Forgot Password?</div> -->
+            </div>
+            <button mat-raised-button class="button" [disabled]="this.loginForm.invalid">
+                <span style="display: inline;"> Sign in</span>
+                @if (loader) {
+                    <mat-spinner diameter="20" color="light"></mat-spinner>
+                }
+            </button>
+            @if (showUserErr) {
+                <div class="error">
+                    {{showUserErr}}
+                </div>
+            }
+        </div>
+    </form>
+</div>

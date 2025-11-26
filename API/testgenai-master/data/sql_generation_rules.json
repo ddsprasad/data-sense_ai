@@ -1,0 +1,189 @@
+{
+  "database_type": "MS SQL Server",
+  "schema_type": "Star Schema",
+
+  "generic_rules": {
+    "syntax": [
+      "Use MS SQL syntax (e.g., TOP instead of LIMIT)",
+      "Always use table aliases (e.g., f, d1, d2) and qualify ALL column names",
+      "Generate ONLY the SQL query in a code block without explanations"
+    ],
+    "schema_validation": [
+      "NEVER invent column names - use ONLY columns from CREATE TABLE statements",
+      "NEVER invent table names - use ONLY tables from provided schema",
+      "READ the schema carefully and verify EXACT column/table names exist"
+    ],
+    "data_types": [
+      "NEVER compare numeric columns (INT, BIGINT) with quoted string values",
+      "Use unquoted numbers for INT/BIGINT columns",
+      "Use quoted values only for VARCHAR/NVARCHAR/TEXT columns",
+      "Check schema data types before writing WHERE/JOIN conditions"
+    ],
+    "joins": [
+      "ALWAYS join fact tables with dimension tables to get descriptive names",
+      "Use dimension table columns for display instead of just showing keys/IDs",
+      "Join on foreign key relationships (e.g., fact.key = dim.key)"
+    ],
+    "best_practices": [
+      "For date filtering, join with dim_date if available",
+      "SELECT descriptive columns from dimension tables, not just keys",
+      "Use WHERE clause filters on dimension tables when possible for performance"
+    ]
+  },
+
+  "common_mistakes": {
+    "data_type_errors": {
+      "description": "Comparing numeric columns with string values causes 'Error converting varchar to bigint'",
+      "wrong_pattern": "WHERE numeric_key_column = 'quoted_number'",
+      "correct_pattern": "WHERE numeric_key_column = unquoted_number",
+      "rule": "Check column data type in CREATE TABLE - INT/BIGINT columns must NOT have quotes"
+    },
+    "datetime_overflow_errors": {
+      "description": "Using DATEADD/DATEDIFF with date_key columns causes 'Arithmetic overflow error converting to datetime'",
+      "root_cause": "date_key columns are INTEGERs (yyyymmdd format), NOT DATE types",
+      "wrong_pattern": "WHERE fact.date_key >= DATEADD(day, -30, GETDATE())",
+      "correct_pattern": "INNER JOIN dim_date d ON fact.date_key = d.date_key WHERE d.full_date >= DATEADD(day, -30, GETDATE())",
+      "rule": "NEVER use date arithmetic on date_key columns. ALWAYS join dim_date and use full_date column for date comparisons"
+    },
+    "column_invention": {
+      "description": "Using columns that don't exist in the schema",
+      "common_hallucinations": [
+        "Assuming 'name' column exists when it's split into first_name + last_name",
+        "Assuming 'is_active' exists when actual column may be 'is_current' or 'status'",
+        "Using simplified names that don't match exact schema column names",
+        "Assuming 'account_opening_sequence' exists in fact_account_opening (it doesn't)",
+        "Assuming 'transaction_date' exists when actual column may be a date_key",
+        "Inventing ranking/sequence columns that don't exist - use ROW_NUMBER() instead"
+      ],
+      "fix_process": [
+        "Read CREATE TABLE statement carefully",
+        "Find EXACT column names (they are case-sensitive and specific)",
+        "If name field needed: Use CONCAT(first_name, ' ', last_name) or check schema",
+        "If status field needed: Check actual column name in schema"
+      ],
+      "rule": "ONLY use columns that appear EXACTLY in CREATE TABLE. DO NOT assume or invent column names."
+    },
+    "table_invention": {
+      "description": "Using table names that don't exist in the schema",
+      "common_hallucinations": [
+        "fact_member_opening does NOT exist - use fact_account_opening",
+        "fact_product_opening does NOT exist - use fact_account_opening",
+        "fact_account_product does NOT exist - use bridge_member_product"
+      ],
+      "rule": "ONLY use table names provided in schema. DO NOT assume tables exist. Check EXACT table names in CREATE TABLE statements."
+    },
+    "date_key_column_validation": {
+      "description": "Using date_key columns that don't exist in fact tables",
+      "critical_rule": "NEVER assume date column names. ALWAYS check CREATE TABLE for exact date_key column name.",
+      "common_hallucinations": [
+        "account_opening_date_key does NOT exist - use open_date_key",
+        "account_opening_date does NOT exist - use open_date_key",
+        "account_open_date_key does NOT exist - use open_date_key",
+        "opening_date_key does NOT exist - use open_date_key"
+      ],
+      "correct_column_names": {
+        "fact_account_opening": {
+          "date_column": "open_date_key",
+          "wrong_guesses": ["account_opening_date_key", "account_opening_date", "account_open_date_key", "opening_date_key"]
+        }
+      },
+      "fix_process": [
+        "1. Read CREATE TABLE statement for the specific fact table",
+        "2. Find the EXACT date_key column name from the schema",
+        "3. For fact_account_opening: use open_date_key (NOT account_opening_date_key)",
+        "4. Use ONLY the exact column name found in CREATE TABLE"
+      ]
+    },
+    "invalid_date_joins": {
+      "description": "Incorrectly joining member date columns directly with dim_date.full_date",
+      "critical_rule": "NEVER join m.member_since_date = d.full_date directly. member_since_date is a DATE column, NOT a date_key.",
+      "wrong_patterns": [
+        "JOIN dim_date d ON m.member_since_date = d.full_date",
+        "WHERE m.member_since_date = d.full_date",
+        "AND m.member_since_date = d.full_date"
+      ],
+      "correct_approach": "Use member_since_date directly for date comparisons WITHOUT joining to dim_date, or join using the appropriate date_key column if available",
+      "rule": "member_since_date is already a DATE type - use it directly in WHERE clauses. Do NOT join it with dim_date.full_date."
+    }
+  },
+
+  "date_handling": {
+    "critical_rules": [
+      "date_key columns are INTEGER type (format: yyyymmdd), NOT DATE type",
+      "NEVER use DATEADD, DATEDIFF, or GETDATE() directly with date_key columns",
+      "NEVER use GETDATE() anywhere in queries - data only goes to December 31, 2024",
+      "ALWAYS join dim_date table when filtering by date",
+      "Use dim_date.full_date column for date arithmetic and comparisons",
+      "For 'last N days/months' use DATEADD from '2024-12-31', NOT from GETDATE()"
+    ],
+    "date_key_naming_pattern": "*_date_key suffix indicates INTEGER surrogate key, not actual date",
+    "correct_pattern_for_date_filtering": {
+      "description": "How to filter by date ranges",
+      "sql": "INNER JOIN dim_date d ON fact_table.some_date_key = d.date_key WHERE d.full_date >= DATEADD(day, -N, CAST('2024-12-31' AS DATE))",
+      "explanation": "Join dim_date first, then use full_date (actual DATE type) for arithmetic. NEVER use GETDATE() - always use '2024-12-31' as reference date."
+    },
+    "getdate_prohibition": {
+      "wrong_pattern": "WHERE d.full_date >= DATEADD(month, -1, GETDATE())",
+      "correct_pattern": "WHERE d.full_date >= DATEADD(month, -1, CAST('2024-12-31' AS DATE))",
+      "rule": "Data ends on 2024-12-31. GETDATE() returns current system date which is beyond available data. Always use '2024-12-31' as the reference date for relative date calculations."
+    }
+  },
+
+  "error_resolution_patterns": {
+    "invalid_column_name": {
+      "error_pattern": "Invalid column name 'X'",
+      "resolution_steps": [
+        "1. Check CREATE TABLE for exact column names available",
+        "2. Look at sample data to understand column structure",
+        "3. Common fixes: name → CONCAT(first_name, ' ', last_name)",
+        "4. Common fixes: is_active → check for is_current, status, or similar",
+        "5. For date columns ending in '_date_key': Find EXACT name in CREATE TABLE (may be different than expected)",
+        "6. CRITICAL: If column doesn't exist in CREATE TABLE, it CANNOT be used - find alternative approach",
+        "7. Rewrite query using ONLY existing columns from CREATE TABLE statement"
+      ]
+    },
+    "arithmetic_overflow_datetime": {
+      "error_pattern": "Arithmetic overflow error converting expression to data type datetime",
+      "root_cause": "Attempted date arithmetic on INTEGER date_key column",
+      "resolution_steps": [
+        "1. Find the date_key column in WHERE clause",
+        "2. Add JOIN to dim_date table",
+        "3. Replace date_key comparison with dim_date.full_date comparison",
+        "4. Use full_date for all DATEADD/DATEDIFF operations"
+      ]
+    },
+    "varchar_to_numeric_conversion": {
+      "error_pattern": "Error converting varchar to bigint",
+      "root_cause": "Used quoted string for numeric column comparison",
+      "resolution_steps": [
+        "1. Check column data type in CREATE TABLE",
+        "2. Remove quotes from numeric values in WHERE/JOIN clauses",
+        "3. INT/BIGINT columns: use 12345, not '12345'"
+      ]
+    }
+  },
+
+  "prompt_templates": {
+    "sql_generation": {
+      "system_role": "You are an expert {database_type} query builder for a {schema_type} data warehouse.",
+      "task": "Generate ONLY {database_type} query in sql code block without any other explanation to answer user question correctly using the provided db schema.",
+      "critical_prefix": "CRITICAL RULES - READ SCHEMA EXACTLY:"
+    },
+
+    "error_resolution": {
+      "system_role": "You are an expert {database_type} query builder for a {schema_type} data warehouse.",
+      "task": "Generate ONLY {database_type} query in sql code block without any other explanation after fixing the given error correctly using the provided db schema.",
+      "error_context": "Error: {error}\nFailed Query: {failed_sql}\nDB Schema: {schema}"
+    }
+  },
+
+  "example_patterns": {
+    "basic_join": "SELECT\n    d.branch_name,           -- descriptive name from dimension\n    COUNT(*) as count\nFROM fact_account_opening f\nINNER JOIN dim_branch d ON f.branch_key = d.branch_key  -- ALWAYS join to get names\nWHERE d.is_current = 1\nGROUP BY d.branch_name",
+    "cross_sell_with_sequence": "-- Use ROW_NUMBER() to determine account sequence (NO account_opening_sequence column exists)\nWITH ranked_accounts AS (\n  SELECT \n    f.*,\n    ROW_NUMBER() OVER (PARTITION BY f.member_key ORDER BY f.open_date_key) as account_rank\n  FROM fact_account_opening f\n)\nSELECT \n  COUNT(DISTINCT CASE WHEN r.account_rank > 1 THEN r.member_key END) * 1.0 / \n  NULLIF(COUNT(DISTINCT CASE WHEN r.account_rank = 1 THEN r.member_key END), 0) as cross_sell_rate\nFROM ranked_accounts r"
+  },
+
+  "notes": {
+    "maintainability": "Update domain_specific_rules when schema changes. Keep generic_rules stable.",
+    "extensibility": "Add new database types by creating new rule sets with same structure"
+  }
+}

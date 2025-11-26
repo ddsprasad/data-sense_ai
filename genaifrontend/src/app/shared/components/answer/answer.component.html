@@ -1,0 +1,251 @@
+<div class="main-content answer-page">
+  <div class="answer-content">
+    @if (!loader && answersList.length) {
+    <div class="question-blog-content">
+      @for (answer of answersList; track answer.question; let idx = $index) {
+      <div id="rag-question-{{ idx }}">
+        @if (answer.response) {
+        <div class="questionHead flex" (click)="scrollIntoView()">
+          <mat-icon svgIcon="ai-question" class="sendIcon"></mat-icon>
+          Question
+        </div>
+        <br />
+        @if (answer?.response.question?.length > 0) {
+        <div class="question">
+          <div>
+            {{ answer?.response.question }}
+            <mat-icon svgIcon="ai-questionedit" class="copy"></mat-icon>
+          </div>
+        </div>
+        }
+        <br />
+        @if(answer?.response?.answer) { @if (answer?.response?.answer ==
+        'irrelevant') {
+        <div class="error">
+          Apologies, but this question falls outside the scope of my training
+          datasets and the business context of the data source. As a result, I'm
+          unable to provide an accurate answer.
+        </div>
+        <br />
+        } @else {
+        <div class="answer-blog">
+          <div class="answerHead flex">
+            <mat-icon svgIcon="ai-answer" class="answerIcon"></mat-icon>
+            <span (click)="showSQL(idx, false)" class="pointer header"
+              >Answer</span
+            >
+
+            @if (answer.response.show_chart) {
+              @if (!answer.response.showChartView) {
+                <mat-icon class="chart-icon" (click)="showChartView(idx, true)">insert_chart_outlined</mat-icon>
+              } @else {
+                <mat-icon class="chart-icon highlight" (click)="showChartView(idx, false)">insert_chart</mat-icon>
+              }
+            }
+
+            @if (answer.response.show_sql) {
+              @if (!answer.response.showSQL) {
+              <span class="showSql" (click)="showSQL(idx, true)"> SQL </span>
+              } @else {
+              <span class="showSql highlight" (click)="showSQL(idx, false)">
+                SQL
+              </span>
+              }
+            }
+           
+            @if(answer.response?.tags) {
+            <div class="tags">
+              <mat-icon svgIcon="ai-tag" class="tagIcon"></mat-icon>
+              @for (tag of answer.response?.tags; track $index) {
+              <div class="tag">{{ tag }}</div>
+              }
+            </div>
+            }
+            <div class="time">{{ answer.response.answered_at }}</div>
+          </div>
+          <br />
+          @if(!answer.response.showChartView) {
+            @if (answer.response.showSQL) {
+  
+            <div class="code-view">
+              <pre><code class="language-sql">{{answer.response.sql}}</code></pre>
+              <div class="header">
+                <span class="title">Microsoft SQL Server 2022</span>
+                @if (answer.copied) {
+                <span class="copied">
+                  <mat-icon>done</mat-icon>
+                  copied
+                </span>
+                } @else {
+                <mat-icon
+                  svgIcon="ai-codecopy"
+                  class="copy"
+                  (click)="copySQL(idx)"
+                ></mat-icon>
+                }
+              </div>
+            </div>
+            } @else {
+            <div class="answer" [innerHTML]="answer.response.answer"></div>
+            }
+
+          }
+        </div>
+        <!-- <br> -->
+        <div class="chartsView">
+          <!-- && !answer.response?.chartLoader -->
+          @if (answer.response.showChartView) {
+          <br>
+         
+          <div class="chartsList">
+            <!-- <div class="chart">
+              <div id="geo_1_chart" style="width: 100%; height: 100%"></div>
+            </div> -->
+            @if(answer.response?.chart_type == 'apex') {
+              <div class="chart" id="chartView-{{ idx }}">
+              </div>
+            } @else if (answer.response?.chart_type == 'google') {
+              <div class="chart google">
+                <div id="google-chart-{{idx}}" style="width: 100%; height: 100%"></div>
+              </div>
+            } @else { 
+              <div class="chart">
+                @if(!answer.response?.charts?.chartOptions) {
+                  <mat-spinner diameter="20"></mat-spinner>
+                }  @else if (answer.response?.charts?.chart == 'error') {
+                  <div class="errorChart">
+                    <mat-icon class="danger">warning</mat-icon>
+                    <span class="retry" (click)="showChartView(idx, true)">Retry</span>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+          }
+        </div>
+        @if (answer?.insight && answer?.insight?.answer &&
+        answer?.insight?.answer != 'irrelevant' && !answer.response?.showSQL && !answer.response.showChartView) {
+        <br />
+        @if(answer.response.show_sql) {
+          <div class="answer-releated-insights">
+            <div class="title">
+              <mat-icon svgIcon="ai-relatedInsignts" class="sendIcon"></mat-icon>
+              Related Insights
+            </div>
+            <div class="answer" [innerHTML]="answer.insight.answer"></div>
+          </div>
+        }
+        } }<br />
+
+        <div class="icons">
+          <div class="share">
+            <span
+              matTooltip="Copy link"
+              matTooltipPosition="above"
+              (click)="sharelink(idx)"
+            >
+              @if (answer.share) {
+              <mat-icon>done</mat-icon>
+              } @else {
+              <mat-icon svgIcon="ai-share" class="th-icon copy"></mat-icon>
+              } share
+            </span>
+          </div>
+          @if (answer?.response?.dislike) {
+          <mat-icon
+            matTooltip="Like"
+            matTooltipPosition="above"
+            svgIcon="ai-like"
+            class="filled th-icon"
+            (click)="like(idx)"
+          ></mat-icon>
+          } @else {
+          <mat-icon
+            matTooltip="Like"
+            matTooltipPosition="above"
+            svgIcon="ai-like"
+            class="th-icon"
+            (click)="like(idx)"
+          ></mat-icon>
+          } @if (answer.answerCopy) {
+          <mat-icon>done</mat-icon>
+          } @else {
+          <mat-icon
+            matTooltip="Copy"
+            matTooltipPosition="above"
+            svgIcon="ai-copy"
+            class="copy th-icon"
+            (click)="answerCopy(idx)"
+          ></mat-icon>
+          }
+          <mat-icon
+            matTooltip="Delete"
+            matTooltipPosition="above"
+            svgIcon="ai-delete"
+            class="delete"
+            (click)="deletDialog($event, idx)"
+          ></mat-icon>
+        </div>
+        <hr />
+        <br />
+        } @else if (answer?.response?.error) {
+        <div class="error">{{ Constants.SOMETHING_WENT_WRONG }}</div>
+        <br>
+        <hr />
+        } @else {
+        <div class="spinner">
+          <mat-spinner diameter="20"></mat-spinner>
+        </div>
+        } } @else if (answer.error) {
+        <div class="error">{{ Constants.SOMETHING_WENT_WRONG }}</div>
+        <br>
+        <hr />
+        } @else {
+        <div class="error">No data</div>
+        }
+      </div>
+      }
+    </div>
+    } @else {
+    <div class="spinner">
+      <mat-spinner diameter="20"></mat-spinner>
+    </div>
+    } @if (relatedQuestions.length && showRelatedsQuestions &&
+    answersList.length && !irrelevantQuestion) {
+    <div class="related">
+      <div class="header">
+        <mat-icon svgIcon="ai-related" class="copy"></mat-icon>
+        Related
+      </div>
+      @for (question of relatedQuestions; track $index) {
+      <div class="question" (click)="relatedQues(question)">
+        <span>
+          {{ question }}
+        </span>
+        <span>
+          <mat-icon>add</mat-icon>
+        </span>
+      </div>
+      }
+    </div>
+    }
+  </div>
+  <div class="followup-container">
+    <input
+      type="text"
+      name="follow-up"
+      id="followup"
+      (keyup.enter)="follwup()"
+      placeholder="Ask a follow-up"
+      [(ngModel)]="followupQues"
+    />
+    <button
+      mat-mini-fab
+      aria-label="send"
+      [disabled]="!followupQues.trim()"
+      (click)="follwup()"
+    >
+      <mat-icon svgIcon="aisend" class="sendIcon"></mat-icon>
+    </button>
+  </div>
+</div>

@@ -1,0 +1,120 @@
+.chart-view-modal {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--chart-modal-bg-color);
+  .header {
+    margin: 0 1em;
+    display: flex;
+    align-items: center;
+    .title {
+      font-weight: 500;
+      color: var(--dark-color);
+      font-size: 20px;
+      flex: 1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      padding-right: 50px;
+    }
+    .cancel {
+      color: #808080;
+      cursor: pointer;
+    }
+
+  }
+
+  .content {
+    --mdc-circular-progress-active-indicator-color: var(--app-color);
+    padding-top: 10px;
+    flex: 1;
+    display: flex;
+    justify-content: center;
+    flex-direction: column;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .chart {
+    display: flex;
+    flex: 1;
+    justify-content: center;
+    width: 100%;
+    align-items: center;
+
+    #chartModal-view {
+      display: flex;
+      justify-content: center;
+      width: 100%;
+    }
+  }
+
+  .followup-container {
+    // position: absolute;
+    width: 90%;
+    // bottom: 20px;
+    // bottom: 60px;
+    background: var(--input-bg-color);
+    border-radius: 50px;
+    height: 50px;
+    display: flex;
+    gap: 15px;
+    padding: 5px 10px;
+    align-items: center;
+    // cursor: move;
+    z-index: 1;
+    border: 1px solid var(--input-border-color);
+    transition: box-shadow 200ms cubic-bezier(0, 0, 0.2, 1);
+    box-shadow: 0 2px 5px 1px rgba(64, 60, 67, .16);
+
+    &:hover {
+      background: var(--input-bg-color);
+      box-shadow: 0 2px 8px 1px rgba(64, 60, 67, .24);
+      border-color: transparent;
+    }
+
+    #chart-followup {
+      border: none;
+      flex: 1;
+      outline: none;
+      font-size: 16px;
+      background: var(--input-bg-color);
+      color: var(--dark);
+      width: 100%;
+      padding-left: 20px;
+    }
+
+    button {
+      background-color: var(--input-btn-bg-color);
+      box-shadow: none;
+
+      .sendIcon {
+        margin-top: 5px;
+        margin-right: 5px;
+      }
+
+
+
+      &:disabled {
+        ::ng-deep .sendIcon {
+          path {
+            fill: var(--input-disabled);
+          }
+        }
+      }
+    }
+
+  }
+
+  .footer {
+    .save {
+      background-color: #706A93;
+      color: #fff !important;
+      width: 92px;
+    }
+
+    .cancel {
+      background-color: #F3F3EE;
+    }
+  }
+}

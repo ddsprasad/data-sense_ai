@@ -1,0 +1,46 @@
+<div class="chart-view-modal">
+  <div class="header">
+    <h1 class="title">
+      {{ data.question }}
+    </h1>
+    <mat-icon class="cancel" (click)="closeDialog()">cancel</mat-icon>
+  </div>
+  <div class="content">
+    <div class="chart">
+      @if(!loader) {
+      <div id="chartModal-view"></div>
+      } @else {
+      <mat-spinner diameter="20"></mat-spinner>
+      }
+    </div>
+    <div class="followup-container">
+      <input
+        type="text"
+        name="chart-follow-up"
+        autocomplete="off"
+        id="chart-followup"
+        (keyup.enter)="follwup()"
+        placeholder="Customize your chart here..."
+        [(ngModel)]="followupQues"
+      />
+      <button
+        mat-mini-fab
+        aria-label="send"
+        [disabled]="!followupQues.trim()"
+        (click)="follwup()"
+      >
+        <mat-icon svgIcon="aisend" class="sendIcon"></mat-icon>
+      </button>
+    </div>
+  </div>
+  <mat-dialog-actions align="end" class="footer">
+    <button mat-button class="cancel" (click)="closeDialog()">Discard</button>
+    <button mat-button class="save" (click)="saveChart()">
+      @if(!saveChartloader) {
+      <span> Save chart </span>
+      } @if(saveChartloader) {
+      <mat-spinner diameter="20" color="light"></mat-spinner>
+      }
+    </button>
+  </mat-dialog-actions>
+</div>

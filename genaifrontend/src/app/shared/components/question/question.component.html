@@ -1,0 +1,34 @@
+<div class="main-content">
+  <div class="question-blog">
+      <div class="header">
+        <span class="header-text">Data begins to make <span class="highlight">sense</span></span>
+      </div>
+      <div class="question-box">
+        <textarea matInput placeholder="Ask anything about your data..." spellcheck="false" [(ngModel)]="question" (keyup.enter)="navigateAnswer()"></textarea>
+        <button mat-mini-fab aria-label="send" [disabled]="!question.trim()" (click)="navigateAnswer()">
+          <mat-icon svgIcon="aisend" class="sendIcon"></mat-icon>
+        </button>
+      </div>
+      @if(trendingQuestion.length) {
+        <div class="trending-section">
+          <div class="trending-header">
+            <mat-icon class="trending-icon">local_fire_department</mat-icon>
+            <span class="trending-title">Trending Questions</span>
+          </div>
+          <div class="trending-list">
+            @for (trend of trendingQuestion; track $index) {
+              <div class="trending-card" (click)="navigate(trend.trending_questions)">
+                <div class="card-icon">
+                  <mat-icon>{{trend.icon_name}}</mat-icon>
+                </div>
+                <div class="card-content">
+                  <span class="card-text">{{trend.trending_questions}}</span>
+                </div>
+                <mat-icon class="card-arrow">arrow_forward</mat-icon>
+              </div>
+            }
+          </div>
+        </div>
+      }
+  </div>
+</div>

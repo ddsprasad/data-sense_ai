@@ -1,0 +1,199 @@
+// Custom Theming for Angular Material
+// For more information: https://material.angular.io/guide/theming
+@use '@angular/material' as mat;
+// Plus imports for other components in your app.
+
+// Include the common styles for Angular Material. We include this here so that you only
+// have to load a single css file for Angular Material in your app.
+// Be sure that you only ever include this mixin once!
+@include mat.core();
+
+// Define the palettes for your theme using the Material Design palettes available in palette.scss
+// (imported above). For each palette, you can optionally specify a default, lighter, and darker
+// hue. Available color palettes: https://material.io/design/color/
+$datsense-AI-primary: mat.define-palette(mat.$indigo-palette);
+$datsense-AI-accent: mat.define-palette(mat.$pink-palette, A200, A100, A400);
+
+// The warn palette is optional (defaults to red).
+$datsense-AI-warn: mat.define-palette(mat.$red-palette);
+
+// Create the theme object. A theme consists of configurations for individual
+// theming systems such as "color" or "typography".
+$datsense-AI-theme: mat.define-light-theme((
+  color: (
+    primary: $datsense-AI-primary,
+    accent: $datsense-AI-accent,
+    warn: $datsense-AI-warn,
+    light: #ffffff
+  )
+));
+
+$datsense-AI-theme-dark: mat.define-dark-theme((
+  color: (
+    primary: $datsense-AI-primary,
+    accent: $datsense-AI-accent,
+    warn: $datsense-AI-warn,
+    light: #ffffff
+  )
+));
+
+
+
+:root {
+  --app-color: #f47821; /* Define your primary color variable */
+  --text-primary-color: #455A64;
+  --text-primary1-color: #455A64;
+  --text-secondary-color: #706A93;
+  --html-text-color: #4D4D4D;
+  --html-highlight-color: #262626;
+  --icon-color-default: rgb(81, 79, 79);
+  --icon-static-color: rgb(81, 79, 79);
+  --icon-color-secondary: rgb(69, 90, 100);
+  --icon-library: rgb(119, 119, 119);
+  --side-menu-bg: #f3f3ee;
+  --main-content: #fff;
+  --table-th-border: #707e88;
+  --table-th-bgcolor: #ebebeb;
+  --side-menu-hover-color: #EAEAE6;
+  --side-menu-history-hover: #d8d8d8;
+  --light: #FFF;
+  --dark: #000;
+  --input-bg-color: #fff;
+  --input-border-color: #EFEFEF;
+  --input-text-color: #fff;
+  --input-icon-color:#6A6A6A;
+  --input-btn-bg-color: #EFEFEF;
+  --input-disabled: grey;
+  --tag-text-color: #656262;
+  --tag-border-color: #D9D9D9;
+  --light-color: #ffffff;
+  --dark-color: #000000;
+  --chart-modal-bg-color: #fff;
+}
+
+// Include theme styles for core and each component used in your app.
+// Alternatively, you can import and @include the theme mixins for each component
+// that you are using.
+
+.dark-theme {
+  @include mat.all-component-themes($datsense-AI-theme-dark);
+  --side-menu-bg: #313131;
+  --main-content: #4A4343;
+  --text-primary-color: #ffffff;
+  --text-primary1-color: #6A6A6A;
+  --text-secondary-color: var(--text-primary-color);
+  --html-text-color: var(--text-primary-color);
+  --html-highlight-color: var(--text-primary-color);
+  --icon-color-default:  var(--text-primary-color);
+  --icon-color-secondary:  var(--text-primary-color);
+  --icon-static-color: rgb(81, 79, 79);
+  --icon-library: var(--text-primary-color);
+  --table-th-border:  var(--text-primary-color);
+  --table-th-bgcolor: var(--main-content);
+  --side-menu-hover-color: var(--main-content);
+  --side-menu-history-hover: var(--main-content);
+  --light: #000;
+  --dark: #FFF;
+  --input-bg-color: var(--side-menu-bg);
+  --input-border-color: #2D2D2D;
+  --input-text-color: #fff;
+  --input-icon-color:#6A6A6A;
+  --input-btn-bg-color: #EFEFEF;
+  --input-disabled: grey;
+  --tag-text-color: #fff;
+  --tag-border-color: #fff;
+  --light-color: #ffffff;
+  --dark-color: #000000;
+  --chart-modal-bg-color: #ebebeb;
+}
+
+.light-theme {
+  @include mat.all-component-themes($datsense-AI-theme);
+}
+
+/* You can add global styles to this file, and also import other style files */
+
+html, body { height: 100%;  scroll-behavior: smooth;--mdc-circular-progress-active-indicator-color: #fff; }
+body { margin: 0; font-family: Roboto, "Helvetica Neue", sans-serif; }
+
+
+.mat-mdc-snack-bar-container {
+  &.success {
+    --mdc-snackbar-container-color: green;
+    --mat-mdc-snack-bar-button-color: #fff;
+    --mdc-snackbar-supporting-text-color: #fff;
+  }
+  &.danger {
+    --mdc-snackbar-container-color: red;
+    --mat-mdc-snack-bar-button-color: #fff;
+    --mdc-snackbar-supporting-text-color: #fff;
+  }
+  &.info {
+    --mdc-snackbar-container-color: cadetblue;
+    --mat-mdc-snack-bar-button-color: #fff;
+    --mdc-snackbar-supporting-text-color: #fff;
+  }
+}
+.mat-mdc-form-field-subscript-wrapper {
+  display: none !important;
+}
+.main-content {
+  height: calc(100% - 82px);
+  background: var(--main-content);
+  margin-top: 3px;
+  border-radius: 0px 0px 10px 10px;
+}
+
+.pointer {
+  cursor: pointer;
+}
+
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb {
+  border-radius: 10px;
+  -webkit-box-shadow: inset 0 0 6px rgb(74, 74, 74);
+}
+
+/*Code highlighter*/
+.highlight {
+  font-weight: 500;
+  color: var( --html-highlight-color);
+}
+
+.mdc-evolution-chip-set__chips {
+  max-width: 100% !important;
+}
+
+.mat-mdc-standard-chip .mdc-evolution-chip__cell--primary,
+.mat-mdc-standard-chip .mdc-evolution-chip__action--primary,
+.mat-mdc-standard-chip .mat-mdc-chip-action-label {
+  overflow: hidden !important;
+}
+
+.apexcharts-toolbar-custom-icon.custom-apex-icon {
+  margin-left: 5px;
+  height: 15px;
+  width: 15px;
+  display: flex;
+}
+
+::ng-deep pre[class*=language-] {
+  min-height: 150px;
+  max-height: 300px;
+  border-radius: 12px;
+  padding-top: 40px;
+  &::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+    border-radius: 10px;
+  }
+  &::-webkit-scrollbar-thumb {
+    border-radius: 10px;
+    -webkit-box-shadow: inset 0 0 6px rgba(247, 244, 244);
+  }
+}
+

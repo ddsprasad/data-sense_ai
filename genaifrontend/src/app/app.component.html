@@ -1,0 +1,21 @@
+<mat-sidenav-container autosize="true">
+  @if (isSidemenu) {
+    <mat-sidenav
+      [fixedInViewport]="true"
+      [ngClass]="!isCollapsed ? 'expanded' : ''"
+      [mode]="isMobile ? 'over' : 'side'"
+      [opened]="isMobile ? 'false' : 'true'"
+    >
+      <app-side-menu
+        [isCollapsed]="isCollapsed"
+        (sidenav)="toggleMenu($event)"
+      ></app-side-menu>
+    </mat-sidenav>
+  }
+  <mat-sidenav-content [ngClass]="isSidemenu ? 'sidemenu' : ''">
+    @if(isSidemenu) {
+      <app-header [isMobile]="isMobile" (sidenav)="toggleMenu()"></app-header>
+    }
+    <router-outlet />
+  </mat-sidenav-content>
+</mat-sidenav-container>

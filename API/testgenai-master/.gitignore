@@ -1,0 +1,67 @@
+# Python-related files and directories
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+*.log
+
+# Virtual environment
+myenv/
+venv/
+env/
+.venv/
+.virtualenv/
+pip-log.txt
+
+# IDE/Editor files
+.idea/
+.vscode/
+
+# Compiled Python files
+*.pyc
+__pycache__/
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Jupyter Notebook / Jupyter Lab files
+.ipynb_checkpoints/
+*.ipynb
+
+# Logs and runtime data
+*.log
+logs/
+!logs/.gitkeep
+*.pid
+*.pyz
+*.pyw
+*.tmp
+
+# macOS-specific
+.DS_Store
+
+# Windows-specific
+Thumbs.db
+Desktop.ini
+
+# Node.js / JavaScript-specific
+node_modules/
+package-lock.json
+
+# Compiled files
+dist/
+build/
+*.dll
+*.exe
+
+# Others
+__pycache__/
+*.db
+*.sqlite3
+*.sql
+*.swp
+meta.csv

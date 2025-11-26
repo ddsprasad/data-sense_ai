@@ -1,0 +1,19 @@
+
+@if (questionslist.length) {
+  <div class="questionList">
+    @for (question of questionslist; track question.question_desc; let idx = $index) {
+      <!-- [matTooltip]="question.question_asked" matTooltipClass="custom-tooltip"  -->
+      @if (question.question_desc) {
+        <li (click)="redirectToAnswer(question, idx)" [ngClass]="{'hightlight': question?.highlight}">
+          <input class="questionInput" type="text" id="his-ques-{{ idx }}"  [readonly]="!question.edit" [value]="question.question_desc" (click)="redirectToAnswer(question, idx)" (keyup.enter)="enterEvent(idx)" (blur)="blurEvent($event, idx)">
+          <span class="iconsGroup" >
+            <mat-icon matTooltip="Edit" matTooltipPosition="above" svgIcon="ai-questionedit" class="editIcon" (click)="editClick($event, idx)"></mat-icon>
+            <mat-icon matTooltip="Delete" matTooltipPosition="above" svgIcon="ai-delete" class="deleteicon" (click)="deletDialog($event, idx)"></mat-icon>
+           
+            <!-- <mat-icon class="deleteicon" matTooltip="Delete" (click)="deletDialog($event, idx)" matTooltipPosition="above">delete_outline</mat-icon> -->
+          </span>
+        </li>
+      }
+    }
+  </div>
+  }

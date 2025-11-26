@@ -1,0 +1,277 @@
+{
+  "description": "Verified working SQL queries for DataSense credit union data warehouse. Use these as reference patterns.",
+  "database": "MS SQL Server",
+  "schema_type": "Star Schema",
+
+  "critical_patterns": {
+    "date_joins": {
+      "description": "ALWAYS join fact tables to dim_date using date_key columns",
+      "pattern": "JOIN dim_date d ON fact_table.open_date_key = d.date_key",
+      "correct_column_names": {
+        "fact_account_opening": "open_date_key",
+        "fact_loan_origination": "origination_date_key",
+        "fact_credit_inquiry": "inquiry_date_key",
+        "fact_loan_payment": "payment_date_key",
+        "fact_credit_score": "score_date_key",
+        "fact_account_balance": "balance_date_key",
+        "fact_market_data": "date_key",
+        "fact_member_relationship": "snapshot_date_key"
+      }
+    },
+    "current_quarter_filter": {
+      "description": "Filter for current quarter using dim_date",
+      "pattern": "WHERE d.quarter = 4 AND d.year = 2024",
+      "note": "Data only goes through Q4 2024. Do NOT use GETDATE() - use hardcoded 2024 values"
+    },
+    "last_n_days_filter": {
+      "description": "Filter for last N days",
+      "pattern": "WHERE d.full_date >= DATEADD(DAY, -30, CAST('2024-12-31' AS DATE))",
+      "note": "Use '2024-12-31' as reference date, NOT GETDATE()"
+    }
+  },
+
+  "verified_queries": [
+    {
+      "id": "Q1",
+      "category": "Operational Insights",
+      "question": "Show me our top 3 branches by new member acquisition this quarter with their average initial deposit",
+      "sql": "SELECT TOP 3\n    b.branch_name,\n    b.region,\n    b.metro_area,\n    COUNT(DISTINCT ao.member_key) AS new_members_acquired,\n    CAST(AVG(ao.initial_deposit_amount) AS DECIMAL(12,2)) AS avg_initial_deposit,\n    CAST(SUM(ao.initial_deposit_amount) AS DECIMAL(15,2)) AS total_deposits_collected\nFROM fact_account_opening ao\nJOIN dim_branch b ON ao.branch_key = b.branch_key\nJOIN dim_date d ON ao.open_date_key = d.date_key\nWHERE d.quarter = 4 AND d.year = 2024\nGROUP BY b.branch_key, b.branch_name, b.region, b.metro_area\nORDER BY new_members_acquired DESC",
+      "key_patterns": ["open_date_key joins to dim_date", "COUNT(DISTINCT member_key) for unique members", "AVG for deposits"]
+    },
+    {
+      "id": "Q2",
+      "category": "Operational Insights",
+      "question": "Which of those branches have the highest cross-sell rate within 90 days?",
+      "sql": "WITH TopBranches AS (\n    SELECT TOP 3\n        b.branch_key,\n        b.branch_name,\n        COUNT(DISTINCT ao.member_key) AS new_members\n    FROM fact_account_opening ao\n    JOIN dim_branch b ON ao.branch_key = b.branch_key\n    JOIN dim_date d ON ao.open_date_key = d.date_key\n    WHERE d.quarter = 4 AND d.year = 2024\n    GROUP BY b.branch_key, b.branch_name\n    ORDER BY new_members DESC\n),\nMemberFirstAccount AS (\n    SELECT \n        ao.member_key,\n        ao.branch_key,\n        MIN(d.full_date) AS first_account_date\n    FROM fact_account_opening ao\n    JOIN dim_date d ON ao.open_date_key = d.date_key\n    WHERE ao.branch_key IN (SELECT branch_key FROM TopBranches)\n    GROUP BY ao.member_key, ao.branch_key\n),\nMemberProductCount AS (\n    SELECT \n        mfa.member_key,\n        mfa.branch_key,\n        COUNT(DISTINCT bmp.product_key) AS products_within_90_days\n    FROM MemberFirstAccount mfa\n    JOIN bridge_member_product bmp ON mfa.member_key = bmp.member_key\n    WHERE bmp.open_date BETWEEN mfa.first_account_date AND DATEADD(DAY, 90, mfa.first_account_date)\n    GROUP BY mfa.member_key, mfa.branch_key\n)\nSELECT \n    tb.branch_name,\n    tb.new_members,\n    COUNT(CASE WHEN mpc.products_within_90_days > 1 THEN 1 END) AS members_with_cross_sell,\n    CAST(COUNT(CASE WHEN mpc.products_within_90_days > 1 THEN 1 END) * 100.0 / NULLIF(tb.new_members, 0) AS DECIMAL(5,2)) AS cross_sell_rate_pct\nFROM TopBranches tb\nLEFT JOIN MemberProductCount mpc ON tb.branch_key = mpc.branch_key\nGROUP BY tb.branch_key, tb.branch_name, tb.new_members\nORDER BY cross_sell_rate_pct DESC",
+      "key_patterns": ["CTE for complex logic", "bridge_member_product for cross-sell", "NULLIF to avoid division by zero"]
+    },
+    {
+      "id": "Q3",
+      "category": "Competitive Intelligence",
+      "question": "Show me all members who had credit inquiries for auto loans in the last 30 days but didn't originate a loan with us",
+      "sql": "SELECT \n    m.member_number,\n    m.first_name + ' ' + m.last_name AS member_name,\n    m.member_segment,\n    m.relationship_tier,\n    d.full_date AS inquiry_date,\n    ci.product_category,\n    CAST(ci.estimated_loan_amount AS DECIMAL(12,2)) AS estimated_loan_amount,\n    ci.credit_score_at_inquiry,\n    CASE \n        WHEN ci.competitor_key IS NOT NULL THEN 'Lost to Competitor'\n        ELSE 'Still Shopping'\n    END AS current_status,\n    COALESCE(c.competitor_name, 'N/A - Still Shopping') AS competitor_name\nFROM fact_credit_inquiry ci\nJOIN dim_member m ON ci.member_key = m.member_key\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nLEFT JOIN dim_competitor c ON ci.competitor_key = c.competitor_key\nWHERE ci.product_category = 'Auto Loan'\n  AND d.full_date >= DATEADD(DAY, -30, CAST('2024-12-31' AS DATE))\n  AND ci.resulted_in_our_loan = 0\nORDER BY ci.estimated_loan_amount DESC",
+      "key_patterns": ["inquiry_date_key joins dim_date", "resulted_in_our_loan = 0 for missed opportunities", "competitor_key for competitive analysis"]
+    },
+    {
+      "id": "Q4",
+      "category": "Competitive Intelligence",
+      "question": "Of those lost opportunities, how many actually closed a loan with another lender vs still shopping?",
+      "sql": "SELECT \n    CASE \n        WHEN ci.competitor_key IS NOT NULL THEN 'Closed with Competitor'\n        ELSE 'Still Shopping'\n    END AS opportunity_status,\n    COUNT(*) AS number_of_inquiries,\n    COUNT(DISTINCT ci.member_key) AS unique_members,\n    CAST(AVG(ci.estimated_loan_amount) AS DECIMAL(12,2)) AS avg_loan_amount_sought,\n    CAST(SUM(ci.estimated_loan_amount) AS DECIMAL(15,2)) AS total_potential_volume\nFROM fact_credit_inquiry ci\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nWHERE ci.product_category = 'Auto Loan'\n  AND d.full_date >= DATEADD(DAY, -30, CAST('2024-12-31' AS DATE))\n  AND ci.resulted_in_our_loan = 0\nGROUP BY \n    CASE \n        WHEN ci.competitor_key IS NOT NULL THEN 'Closed with Competitor'\n        ELSE 'Still Shopping'\n    END",
+      "key_patterns": ["CASE in GROUP BY", "competitor_key IS NULL = still shopping"]
+    },
+    {
+      "id": "Q5",
+      "category": "Competitive Intelligence",
+      "question": "Break down our competitive losses by competitor - who are we losing to most often?",
+      "sql": "SELECT \n    c.competitor_name,\n    c.competitor_type,\n    c.market_segment,\n    COUNT(*) AS total_loans_lost,\n    COUNT(DISTINCT ci.member_key) AS unique_members_lost,\n    CAST(AVG(ci.estimated_loan_amount) AS DECIMAL(12,2)) AS avg_loan_amount,\n    CAST(SUM(ci.estimated_loan_amount) AS DECIMAL(15,2)) AS total_volume_lost,\n    CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER() AS DECIMAL(5,2)) AS pct_of_total_losses\nFROM fact_credit_inquiry ci\nJOIN dim_competitor c ON ci.competitor_key = c.competitor_key\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nWHERE ci.resulted_in_our_loan = 0\n  AND ci.competitor_key IS NOT NULL\n  AND d.full_date >= DATEADD(MONTH, -6, CAST('2024-12-31' AS DATE))\nGROUP BY c.competitor_key, c.competitor_name, c.competitor_type, c.market_segment\nORDER BY total_loans_lost DESC",
+      "key_patterns": ["Window function for percentage", "dim_competitor join"]
+    },
+    {
+      "id": "Q6",
+      "category": "Competitive Intelligence",
+      "question": "For members still shopping with credit scores above 720 and inquiry dates within the last 14 days, ranked by potential loan size",
+      "sql": "SELECT \n    m.member_number,\n    m.first_name + ' ' + m.last_name AS member_name,\n    m.member_segment,\n    m.relationship_tier,\n    d.full_date AS inquiry_date,\n    DATEDIFF(DAY, d.full_date, CAST('2024-12-31' AS DATE)) AS days_since_inquiry,\n    ci.product_category,\n    CAST(ci.estimated_loan_amount AS DECIMAL(12,2)) AS potential_loan_size,\n    ci.credit_score_at_inquiry\nFROM fact_credit_inquiry ci\nJOIN dim_member m ON ci.member_key = m.member_key\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nWHERE ci.credit_score_at_inquiry > 720\n  AND d.full_date >= DATEADD(DAY, -14, CAST('2024-12-31' AS DATE))\n  AND ci.resulted_in_our_loan = 0\n  AND ci.competitor_key IS NULL\nORDER BY ci.estimated_loan_amount DESC",
+      "key_patterns": ["competitor_key IS NULL = still shopping", "credit_score_at_inquiry filter"]
+    },
+    {
+      "id": "Q7",
+      "category": "Risk Intelligence",
+      "question": "Show me members with auto loans who've had payment delays in the last 6 months, correlated with credit utilization increases",
+      "sql": "WITH MembersWithLateAutoPayments AS (\n    SELECT \n        lp.member_key,\n        COUNT(*) AS late_payment_count,\n        MAX(lp.days_late) AS max_days_late,\n        AVG(CAST(lp.days_late AS FLOAT)) AS avg_days_late\n    FROM fact_loan_payment lp\n    JOIN fact_loan_origination lo ON lp.loan_number = lo.loan_number\n    JOIN dim_product p ON lo.product_key = p.product_key\n    JOIN dim_date d ON lp.payment_date_key = d.date_key\n    WHERE p.product_category = 'Auto Loan'\n      AND lp.is_late = 1\n      AND d.full_date >= DATEADD(MONTH, -6, CAST('2024-12-31' AS DATE))\n    GROUP BY lp.member_key\n)\nSELECT \n    m.member_number,\n    m.first_name + ' ' + m.last_name AS member_name,\n    m.risk_tier,\n    mlap.late_payment_count,\n    mlap.max_days_late\nFROM MembersWithLateAutoPayments mlap\nJOIN dim_member m ON mlap.member_key = m.member_key\nORDER BY mlap.late_payment_count DESC",
+      "key_patterns": ["fact_loan_payment.is_late = 1 for late payments", "payment_date_key joins dim_date"]
+    },
+    {
+      "id": "Q8",
+      "category": "Risk Intelligence",
+      "question": "Which members have negative checking account balances more than 3 times in the last 90 days?",
+      "sql": "SELECT \n    m.member_number,\n    m.first_name + ' ' + m.last_name AS member_name,\n    m.member_segment,\n    m.risk_tier,\n    COUNT(*) AS negative_balance_occurrences,\n    CAST(AVG(ab.current_balance) AS DECIMAL(10,2)) AS avg_negative_balance,\n    MAX(ab.days_negative) AS max_consecutive_days_negative\nFROM fact_account_balance ab\nJOIN dim_member m ON ab.member_key = m.member_key\nJOIN dim_date d ON ab.balance_date_key = d.date_key\nWHERE ab.is_negative_balance = 1\n  AND d.full_date >= DATEADD(DAY, -90, CAST('2024-12-31' AS DATE))\nGROUP BY m.member_key, m.member_number, m.first_name, m.last_name, m.member_segment, m.risk_tier\nHAVING COUNT(*) > 3\nORDER BY negative_balance_occurrences DESC",
+      "key_patterns": ["balance_date_key joins dim_date", "is_negative_balance = 1", "HAVING COUNT(*) > 3"]
+    },
+    {
+      "id": "Q9",
+      "category": "Market Correlation",
+      "question": "Show me the correlation between regional auto dealership sales volume and our indirect auto loan originations",
+      "sql": "WITH MonthlyMarketAutoSales AS (\n    SELECT \n        d.year,\n        d.month_number,\n        d.month_name,\n        md.metro_area,\n        SUM(md.metric_value) AS total_dealership_sales\n    FROM fact_market_data md\n    JOIN dim_date d ON md.date_key = d.date_key\n    WHERE md.data_type = 'Auto Sales'\n      AND d.full_date >= DATEADD(MONTH, -12, CAST('2024-12-31' AS DATE))\n    GROUP BY d.year, d.month_number, d.month_name, md.metro_area\n),\nMonthlyIndirectOriginations AS (\n    SELECT \n        d.year,\n        d.month_number,\n        b.metro_area,\n        COUNT(*) AS indirect_loan_count,\n        SUM(lo.loan_amount) AS indirect_loan_volume\n    FROM fact_loan_origination lo\n    JOIN dim_date d ON lo.origination_date_key = d.date_key\n    JOIN dim_branch b ON lo.branch_key = b.branch_key\n    JOIN dim_product p ON lo.product_key = p.product_key\n    WHERE lo.is_indirect = 1\n      AND p.product_category = 'Auto Loan'\n      AND d.full_date >= DATEADD(MONTH, -12, CAST('2024-12-31' AS DATE))\n    GROUP BY d.year, d.month_number, b.metro_area\n)\nSELECT \n    mmas.year,\n    mmas.month_name,\n    mmas.metro_area,\n    CAST(mmas.total_dealership_sales AS INT) AS market_auto_sales,\n    COALESCE(mio.indirect_loan_count, 0) AS our_indirect_loans\nFROM MonthlyMarketAutoSales mmas\nLEFT JOIN MonthlyIndirectOriginations mio \n    ON mmas.year = mio.year \n    AND mmas.month_number = mio.month_number\n    AND mmas.metro_area = mio.metro_area\nORDER BY mmas.metro_area, mmas.year, mmas.month_number",
+      "key_patterns": ["fact_market_data for external data", "origination_date_key joins dim_date", "is_indirect = 1"]
+    },
+    {
+      "id": "Q10",
+      "category": "Strategic",
+      "question": "Among members who opened accounts with us after closing loans with competitors, what's their average relationship value?",
+      "sql": "WITH MembersWithPriorCompetitorLoans AS (\n    SELECT DISTINCT\n        bt.member_key,\n        MIN(bt.open_date) AS first_competitor_loan_date\n    FROM fact_bureau_tradeline bt\n    WHERE bt.competitor_key IS NOT NULL\n    GROUP BY bt.member_key\n),\nMemberFirstAccountWithUs AS (\n    SELECT \n        bmp.member_key,\n        MIN(bmp.open_date) AS first_account_with_us\n    FROM bridge_member_product bmp\n    GROUP BY bmp.member_key\n),\nConquestMembers AS (\n    SELECT \n        mpcl.member_key,\n        mpcl.first_competitor_loan_date,\n        mfawu.first_account_with_us\n    FROM MembersWithPriorCompetitorLoans mpcl\n    JOIN MemberFirstAccountWithUs mfawu ON mpcl.member_key = mfawu.member_key\n    WHERE mpcl.first_competitor_loan_date < mfawu.first_account_with_us\n)\nSELECT \n    COUNT(DISTINCT cm.member_key) AS total_conquest_members,\n    CAST(AVG(mr.lifetime_value) AS DECIMAL(12,2)) AS avg_lifetime_value,\n    CAST(AVG(mr.total_deposits) AS DECIMAL(12,2)) AS avg_total_deposits,\n    CAST(AVG(mr.total_loans) AS DECIMAL(12,2)) AS avg_total_loans\nFROM ConquestMembers cm\nJOIN fact_member_relationship mr ON cm.member_key = mr.member_key",
+      "key_patterns": ["fact_bureau_tradeline for competitor data", "bridge_member_product for our products", "fact_member_relationship for LTV"]
+    },
+    {
+      "id": "Q11",
+      "category": "Bureau Intelligence",
+      "question": "How many members had credit inquiries in the last 60 days across all product types?",
+      "sql": "SELECT \n    COUNT(DISTINCT ci.member_key) AS unique_members_with_inquiries,\n    COUNT(*) AS total_inquiries,\n    CAST(AVG(ci.estimated_loan_amount) AS DECIMAL(12,2)) AS avg_loan_amount_sought,\n    CAST(SUM(ci.estimated_loan_amount) AS DECIMAL(15,2)) AS total_potential_volume,\n    CAST(AVG(ci.credit_score_at_inquiry) AS DECIMAL(5,1)) AS avg_credit_score\nFROM fact_credit_inquiry ci\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nWHERE d.full_date >= DATEADD(DAY, -60, CAST('2024-12-31' AS DATE))",
+      "key_patterns": ["Simple aggregate query", "inquiry_date_key joins dim_date"]
+    },
+    {
+      "id": "Q12",
+      "category": "Bureau Intelligence",
+      "question": "Break down credit inquiries by product type",
+      "sql": "SELECT \n    ci.product_category,\n    COUNT(DISTINCT ci.member_key) AS unique_members,\n    COUNT(*) AS total_inquiries,\n    CAST(AVG(ci.estimated_loan_amount) AS DECIMAL(12,2)) AS avg_loan_amount,\n    CAST(SUM(ci.estimated_loan_amount) AS DECIMAL(15,2)) AS total_potential_volume,\n    CAST(COUNT(*) * 100.0 / SUM(COUNT(*)) OVER() AS DECIMAL(5,2)) AS pct_of_all_inquiries\nFROM fact_credit_inquiry ci\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nWHERE d.full_date >= DATEADD(DAY, -60, CAST('2024-12-31' AS DATE))\nGROUP BY ci.product_category\nORDER BY total_inquiries DESC",
+      "key_patterns": ["GROUP BY product_category", "Window function for percentage"]
+    },
+    {
+      "id": "Q13",
+      "category": "Bureau Intelligence",
+      "question": "For auto loan inquiries, show me our capture rate - how many resulted in loans with us versus competitors?",
+      "sql": "SELECT \n    COUNT(*) AS total_auto_inquiries,\n    SUM(CASE WHEN ci.resulted_in_our_loan = 1 THEN 1 ELSE 0 END) AS won_by_us,\n    SUM(CASE WHEN ci.competitor_key IS NOT NULL THEN 1 ELSE 0 END) AS lost_to_competitors,\n    SUM(CASE WHEN ci.competitor_key IS NULL AND ci.resulted_in_our_loan = 0 THEN 1 ELSE 0 END) AS still_shopping,\n    CAST(SUM(CASE WHEN ci.resulted_in_our_loan = 1 THEN 1 ELSE 0 END) * 100.0 / COUNT(*) AS DECIMAL(5,2)) AS our_capture_rate_pct\nFROM fact_credit_inquiry ci\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nWHERE ci.product_category = 'Auto Loan'\n  AND d.full_date >= DATEADD(DAY, -60, CAST('2024-12-31' AS DATE))",
+      "key_patterns": ["CASE expressions for conditional counting", "resulted_in_our_loan flag"]
+    },
+    {
+      "id": "Q14",
+      "category": "Bureau Intelligence",
+      "question": "Show me our top 5 competitors by loan capture from our members",
+      "sql": "SELECT TOP 5\n    c.competitor_name,\n    c.competitor_type,\n    c.market_segment,\n    COUNT(*) AS loans_captured,\n    COUNT(DISTINCT ci.member_key) AS unique_members_captured,\n    CAST(AVG(ci.estimated_loan_amount) AS DECIMAL(12,2)) AS avg_loan_amount,\n    CAST(SUM(ci.estimated_loan_amount) AS DECIMAL(15,2)) AS total_volume_captured\nFROM fact_credit_inquiry ci\nJOIN dim_competitor c ON ci.competitor_key = c.competitor_key\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nWHERE ci.resulted_in_our_loan = 0\n  AND ci.competitor_key IS NOT NULL\n  AND d.full_date >= DATEADD(DAY, -60, CAST('2024-12-31' AS DATE))\nGROUP BY c.competitor_key, c.competitor_name, c.competitor_type, c.market_segment\nORDER BY loans_captured DESC",
+      "key_patterns": ["TOP 5 for ranking", "dim_competitor join"]
+    },
+    {
+      "id": "Q15",
+      "category": "Bureau Intelligence",
+      "question": "Which members are still shopping - had inquiries but no new tradelines - with credit scores above 680?",
+      "sql": "SELECT \n    m.member_number,\n    m.first_name + ' ' + m.last_name AS member_name,\n    m.member_segment,\n    m.relationship_tier,\n    ci.product_category,\n    d.full_date AS inquiry_date,\n    DATEDIFF(DAY, d.full_date, CAST('2024-12-31' AS DATE)) AS days_since_inquiry,\n    CAST(ci.estimated_loan_amount AS DECIMAL(12,2)) AS loan_amount_sought,\n    ci.credit_score_at_inquiry\nFROM fact_credit_inquiry ci\nJOIN dim_member m ON ci.member_key = m.member_key\nJOIN dim_date d ON ci.inquiry_date_key = d.date_key\nWHERE ci.credit_score_at_inquiry > 680\n  AND d.full_date >= DATEADD(DAY, -21, CAST('2024-12-31' AS DATE))\n  AND ci.resulted_in_our_loan = 0\n  AND ci.competitor_key IS NULL\nORDER BY ci.estimated_loan_amount DESC",
+      "key_patterns": ["competitor_key IS NULL = still shopping", "DATEDIFF for days calculation"]
+    },
+    {
+      "id": "Q16",
+      "category": "Bureau Intelligence",
+      "question": "Of members still shopping, which ones have existing relationships with us and what products do they have?",
+      "sql": "WITH StillShoppingMembers AS (\n    SELECT DISTINCT\n        ci.member_key,\n        ci.product_category AS shopping_for,\n        ci.estimated_loan_amount,\n        ci.credit_score_at_inquiry\n    FROM fact_credit_inquiry ci\n    JOIN dim_date d ON ci.inquiry_date_key = d.date_key\n    WHERE d.full_date >= DATEADD(DAY, -21, CAST('2024-12-31' AS DATE))\n      AND ci.resulted_in_our_loan = 0\n      AND ci.competitor_key IS NULL\n      AND ci.credit_score_at_inquiry > 680\n),\nExistingProducts AS (\n    SELECT \n        bmp.member_key,\n        COUNT(DISTINCT bmp.product_key) AS product_count,\n        STRING_AGG(p.product_name, ', ') WITHIN GROUP (ORDER BY p.product_name) AS products_held\n    FROM bridge_member_product bmp\n    JOIN dim_product p ON bmp.product_key = p.product_key\n    WHERE bmp.is_active = 1\n    GROUP BY bmp.member_key\n)\nSELECT \n    m.member_number,\n    m.first_name + ' ' + m.last_name AS member_name,\n    ssm.shopping_for,\n    CAST(ssm.estimated_loan_amount AS DECIMAL(12,2)) AS loan_amount_sought,\n    COALESCE(ep.product_count, 0) AS current_product_count,\n    COALESCE(ep.products_held, 'No existing products') AS current_products\nFROM StillShoppingMembers ssm\nJOIN dim_member m ON ssm.member_key = m.member_key\nLEFT JOIN ExistingProducts ep ON ssm.member_key = ep.member_key\nWHERE ep.product_count > 0\nORDER BY ssm.estimated_loan_amount DESC",
+      "key_patterns": ["STRING_AGG for product list", "bridge_member_product for holdings", "CTE for complex logic"]
+    },
+    {
+      "id": "Q17",
+      "category": "Bureau Intelligence",
+      "question": "Show me members who inquired with us but went to competitors, and now show delinquency on those loans",
+      "sql": "SELECT \n    m.member_number,\n    m.first_name + ' ' + m.last_name AS member_name,\n    c.competitor_name,\n    ci.product_category AS loan_type,\n    CAST(ci.estimated_loan_amount AS DECIMAL(12,2)) AS original_loan_amount,\n    bt.payment_status,\n    bt.days_past_due,\n    CAST(bt.current_balance AS DECIMAL(12,2)) AS current_balance,\n    CASE \n        WHEN bt.days_past_due >= 90 THEN 'Severely Delinquent (90+ days)'\n        WHEN bt.days_past_due >= 60 THEN 'Seriously Delinquent (60-89 days)'\n        WHEN bt.days_past_due >= 30 THEN 'Delinquent (30-59 days)'\n        ELSE 'Early Stage (< 30 days)'\n    END AS delinquency_severity\nFROM fact_credit_inquiry ci\nJOIN dim_member m ON ci.member_key = m.member_key\nJOIN dim_competitor c ON ci.competitor_key = c.competitor_key\nJOIN fact_bureau_tradeline bt ON ci.member_key = bt.member_key \n    AND ci.competitor_key = bt.competitor_key\nWHERE ci.resulted_in_our_loan = 0\n  AND ci.competitor_key IS NOT NULL\n  AND bt.is_delinquent = 1\nORDER BY bt.days_past_due DESC",
+      "key_patterns": ["fact_bureau_tradeline for competitor loan status", "is_delinquent = 1", "days_past_due"]
+    },
+    {
+      "id": "Q18",
+      "category": "Risk Intelligence",
+      "question": "Identify members with increasing credit utilization (up 20%+) who also have loans with us",
+      "sql": "WITH CreditUtilizationChange AS (\n    SELECT \n        cs_current.member_key,\n        cs_current.credit_utilization_pct AS current_utilization,\n        cs_prior.credit_utilization_pct AS prior_utilization,\n        (cs_current.credit_utilization_pct - COALESCE(cs_prior.credit_utilization_pct, 0)) AS utilization_change,\n        cs_current.credit_score AS current_score\n    FROM fact_credit_score cs_current\n    JOIN dim_date d_current ON cs_current.score_date_key = d_current.date_key\n    LEFT JOIN fact_credit_score cs_prior ON cs_current.member_key = cs_prior.member_key\n    LEFT JOIN dim_date d_prior ON cs_prior.score_date_key = d_prior.date_key\n        AND d_prior.full_date BETWEEN DATEADD(DAY, -100, d_current.full_date) AND DATEADD(DAY, -80, d_current.full_date)\n    WHERE d_current.full_date = (\n        SELECT MAX(d3.full_date) \n        FROM fact_credit_score cs3 \n        JOIN dim_date d3 ON cs3.score_date_key = d3.date_key\n        WHERE cs3.member_key = cs_current.member_key\n    )\n),\nMembersWithOurLoans AS (\n    SELECT \n        lo.member_key,\n        COUNT(*) AS active_loan_count,\n        SUM(lo.loan_amount) AS total_loan_balance\n    FROM fact_loan_origination lo\n    WHERE lo.loan_status = 'Active'\n    GROUP BY lo.member_key\n)\nSELECT \n    m.member_number,\n    m.first_name + ' ' + m.last_name AS member_name,\n    m.risk_tier,\n    mwol.active_loan_count AS our_active_loans,\n    CAST(mwol.total_loan_balance AS DECIMAL(12,2)) AS our_total_loan_balance,\n    CAST(cuc.prior_utilization * 100 AS DECIMAL(5,2)) AS utilization_90_days_ago_pct,\n    CAST(cuc.current_utilization * 100 AS DECIMAL(5,2)) AS current_utilization_pct,\n    CAST(cuc.utilization_change * 100 AS DECIMAL(5,2)) AS utilization_increase_pct\nFROM CreditUtilizationChange cuc\nJOIN MembersWithOurLoans mwol ON cuc.member_key = mwol.member_key\nJOIN dim_member m ON cuc.member_key = m.member_key\nWHERE cuc.utilization_change >= 0.20\nORDER BY cuc.utilization_change DESC",
+      "key_patterns": ["fact_credit_score for bureau data", "score_date_key joins dim_date", "loan_status = 'Active'"]
+    },
+    {
+      "id": "Q19",
+      "category": "Market Correlation",
+      "question": "Show correlation between local employment data by county and our member credit inquiry volume",
+      "sql": "WITH MonthlyEmploymentData AS (\n    SELECT \n        d.year,\n        d.month_number,\n        md.county,\n        AVG(md.metric_value) AS avg_employment\n    FROM fact_market_data md\n    JOIN dim_date d ON md.date_key = d.date_key\n    WHERE md.data_type = 'Employment'\n      AND d.full_date >= DATEADD(MONTH, -12, CAST('2024-12-31' AS DATE))\n    GROUP BY d.year, d.month_number, md.county\n),\nMonthlyInquiryVolume AS (\n    SELECT \n        d.year,\n        d.month_number,\n        b.county,\n        COUNT(*) AS inquiry_count\n    FROM fact_credit_inquiry ci\n    JOIN dim_member m ON ci.member_key = m.member_key\n    JOIN dim_branch b ON m.primary_branch_key = b.branch_key\n    JOIN dim_date d ON ci.inquiry_date_key = d.date_key\n    WHERE d.full_date >= DATEADD(MONTH, -12, CAST('2024-12-31' AS DATE))\n    GROUP BY d.year, d.month_number, b.county\n)\nSELECT \n    med.year,\n    med.month_number,\n    med.county,\n    CAST(med.avg_employment AS INT) AS employed_population,\n    COALESCE(miv.inquiry_count, 0) AS credit_inquiries\nFROM MonthlyEmploymentData med\nLEFT JOIN MonthlyInquiryVolume miv \n    ON med.year = miv.year \n    AND med.month_number = miv.month_number\n    AND med.county = miv.county\nORDER BY med.county, med.year, med.month_number",
+      "key_patterns": ["fact_market_data for external data", "primary_branch_key for member's branch"]
+    },
+    {
+      "id": "Q20",
+      "category": "Summary",
+      "question": "Summary metrics - total members, inquiries, capture rate, active loans",
+      "sql": "SELECT 'Total Members' AS Metric, CAST(COUNT(*) AS VARCHAR(20)) AS Value FROM dim_member WHERE is_current = 1\nUNION ALL\nSELECT 'Credit Inquiries (60 days)', CAST(COUNT(*) AS VARCHAR(20)) \nFROM fact_credit_inquiry ci JOIN dim_date d ON ci.inquiry_date_key = d.date_key \nWHERE d.full_date >= DATEADD(DAY, -60, CAST('2024-12-31' AS DATE))\nUNION ALL\nSELECT 'Our Capture Rate %', CAST(CAST(SUM(CASE WHEN resulted_in_our_loan = 1 THEN 1 ELSE 0 END) * 100.0 / NULLIF(COUNT(*), 0) AS DECIMAL(5,2)) AS VARCHAR(20))\nFROM fact_credit_inquiry\nUNION ALL\nSELECT 'Active Loans', CAST(COUNT(*) AS VARCHAR(20)) \nFROM fact_loan_origination WHERE loan_status = 'Active'",
+      "key_patterns": ["UNION ALL for multiple metrics", "is_current = 1 for active records"]
+    },
+    {
+      "id": "Q21",
+      "category": "Competitive Intelligence",
+      "question": "Auto loan inquiries in the last 30 days that didn't originate with us",
+      "sql": "SELECT\n    ci.inquiry_id,\n    ci.member_key,\n    m.first_name,\n    m.last_name,\n    m.member_segment,\n    m.relationship_tier,\n    d.full_date AS inquiry_date,\n    ci.product_category,\n    ci.estimated_loan_amount,\n    ci.credit_score_at_inquiry,\n    CASE \n        WHEN ci.competitor_key IS NOT NULL THEN 'Lost to Competitor'\n        ELSE 'Still Shopping'\n    END AS status,\n    COALESCE(c.competitor_name, 'N/A') AS competitor_name\nFROM fact_credit_inquiry ci\nINNER JOIN dim_date d ON ci.inquiry_date_key = d.date_key\nINNER JOIN dim_member m ON ci.member_key = m.member_key\nLEFT JOIN dim_competitor c ON ci.competitor_key = c.competitor_key\nWHERE d.full_date >= DATEADD(DAY, -30, CAST('2024-12-31' AS DATE))\n  AND ci.product_category = 'Auto Loan'\n  AND ci.resulted_in_our_loan = 0\nORDER BY ci.estimated_loan_amount DESC",
+      "key_patterns": ["inquiry_date_key joins dim_date", "resulted_in_our_loan = 0 for missed opportunities", "LEFT JOIN dim_competitor for competitor info", "CASE for status classification", "COALESCE for null handling"]
+    },
+    {
+      "id": "Q22",
+      "category": "Strategic",
+      "question": "Members who opened accounts with us after having loans with competitors - average lifetime value and retention",
+      "sql": "WITH MembersWithPriorCompetitorLoans AS (\n    SELECT DISTINCT\n        bt.member_key,\n        MIN(bt.open_date) AS first_competitor_loan_date\n    FROM fact_bureau_tradeline bt\n    WHERE bt.competitor_key IS NOT NULL\n    GROUP BY bt.member_key\n),\nMemberFirstAccountWithUs AS (\n    SELECT \n        bmp.member_key,\n        MIN(bmp.open_date) AS first_account_with_us\n    FROM bridge_member_product bmp\n    GROUP BY bmp.member_key\n),\nConquestMembers AS (\n    SELECT \n        mpcl.member_key\n    FROM MembersWithPriorCompetitorLoans mpcl\n    INNER JOIN MemberFirstAccountWithUs mfawu ON mpcl.member_key = mfawu.member_key\n    WHERE mpcl.first_competitor_loan_date < mfawu.first_account_with_us\n)\nSELECT \n    COUNT(DISTINCT cm.member_key) AS total_conquest_members,\n    CAST(AVG(mr.lifetime_value) AS DECIMAL(12,2)) AS avg_lifetime_value,\n    CAST(AVG(mr.total_deposits) AS DECIMAL(12,2)) AS avg_total_deposits,\n    CAST(AVG(mr.total_loans) AS DECIMAL(12,2)) AS avg_total_loans,\n    CAST(AVG(CAST(mr.number_of_products AS FLOAT)) AS DECIMAL(4,2)) AS avg_products_per_member,\n    CAST(AVG(mr.retention_rate_indicator) * 100 AS DECIMAL(5,2)) AS retention_rate_pct\nFROM ConquestMembers cm\nINNER JOIN fact_member_relationship mr ON cm.member_key = mr.member_key\nINNER JOIN dim_date d ON mr.snapshot_date_key = d.date_key\nWHERE d.full_date = (SELECT MAX(d2.full_date) FROM fact_member_relationship mr2 INNER JOIN dim_date d2 ON mr2.snapshot_date_key = d2.date_key)",
+      "key_patterns": ["fact_bureau_tradeline for competitor loan history", "bridge_member_product for our account openings", "fact_member_relationship for lifetime_value", "retention_rate_indicator for retention", "CTE for complex member journey"]
+    }
+  ],
+
+  "common_hallucinations": {
+    "description": "Column names and tables the LLM commonly invents that DO NOT EXIST",
+    "wrong_tables": {
+      "dim_account_type": "DOES NOT EXIST - use dim_product for product/account types",
+      "fact_competitor_loan": "DOES NOT EXIST - use fact_bureau_tradeline for competitor loan data"
+    },
+    "wrong_columns": {
+      "origination_id": "USE loan_origination_key instead",
+      "account_opening_date_key": "USE open_date_key instead",
+      "account_opening_date": "USE open_date_key instead",
+      "inquiry_date": "USE inquiry_date_key (joins to dim_date) instead",
+      "loan_date": "USE origination_date_key instead",
+      "relationship_value": "USE lifetime_value instead (in fact_member_relationship)",
+      "is_active_member": "DOES NOT EXIST - use is_current = 1 AND member_status = 'Active'",
+      "status": "DOES NOT EXIST - use member_status in dim_member",
+      "is_active": "In dim_branch only (not dim_member) - for members use is_current = 1",
+      "fact_loan_origination.resulted_in_our_loan": "WRONG TABLE - resulted_in_our_loan is in fact_credit_inquiry NOT fact_loan_origination",
+      "fact_loan_origination.competitor_key": "WRONG TABLE - competitor_key is in fact_credit_inquiry and fact_bureau_tradeline NOT fact_loan_origination"
+    },
+    "critical_table_column_mapping": {
+      "resulted_in_our_loan": "ONLY in fact_credit_inquiry",
+      "competitor_key": "ONLY in fact_credit_inquiry and fact_bureau_tradeline (NOT in fact_loan_origination)",
+      "lifetime_value": "ONLY in fact_member_relationship",
+      "is_current": "ONLY in dim_member and dim_branch (NOT in fact tables)"
+    }
+  },
+
+  "column_reference": {
+    "fact_account_opening": {
+      "date_key": "open_date_key",
+      "primary_key": "account_opening_key",
+      "all_columns": ["account_opening_key", "member_key", "product_key", "branch_key", "open_date_key", "account_number", "initial_deposit_amount", "funding_source", "cross_sell_indicator", "days_since_membership", "acquisition_channel", "referral_source", "account_status", "close_date_key"]
+    },
+    "fact_credit_inquiry": {
+      "date_key": "inquiry_date_key",
+      "primary_key": "inquiry_key",
+      "all_columns": ["inquiry_key", "member_key", "bureau_key", "inquiry_date_key", "inquiry_id", "inquiry_type", "inquiry_purpose", "product_category", "inquiring_lender", "competitor_key", "estimated_loan_amount", "credit_score_at_inquiry", "resulted_in_our_loan", "our_loan_number", "inquiry_source"],
+      "notes": "Use product_category for loan type filtering (e.g., 'Auto Loan', 'Mortgage')"
+    },
+    "fact_loan_origination": {
+      "date_key": "origination_date_key",
+      "primary_key": "loan_origination_key",
+      "all_columns": ["loan_origination_key", "member_key", "product_key", "branch_key", "origination_date_key", "loan_number", "loan_amount", "interest_rate", "term_months", "loan_purpose", "collateral_type", "loan_to_value_ratio", "debt_to_income_ratio", "credit_score_at_origination", "approval_amount", "funding_date_key", "loan_status", "origination_channel", "is_indirect", "dealer_name"],
+      "notes": "NO origination_id column - use loan_origination_key or loan_number"
+    },
+    "fact_loan_payment": {
+      "date_key": "payment_date_key",
+      "key_columns": ["member_key", "loan_number", "days_late", "is_late"]
+    },
+    "fact_credit_score": {
+      "date_key": "score_date_key",
+      "key_columns": ["member_key", "credit_score", "credit_utilization_pct", "total_balance", "available_credit"]
+    },
+    "fact_account_balance": {
+      "date_key": "balance_date_key",
+      "key_columns": ["member_key", "current_balance", "is_negative_balance", "days_negative"]
+    },
+    "fact_bureau_tradeline": {
+      "date_key": "report_date_key",
+      "primary_key": "tradeline_key",
+      "all_columns": ["tradeline_key", "member_key", "bureau_key", "report_date_key", "tradeline_id", "creditor_name", "competitor_key", "account_type", "account_number_masked", "open_date", "close_date", "account_status", "current_balance", "credit_limit", "high_credit", "monthly_payment", "payment_status", "days_past_due", "is_delinquent"],
+      "notes": "Use this table for competitor loan data. competitor_key links to dim_competitor."
+    },
+    "fact_market_data": {
+      "date_key": "date_key",
+      "key_columns": ["metro_area", "county", "data_type", "metric_name", "metric_value"]
+    },
+    "fact_member_relationship": {
+      "date_key": "snapshot_date_key",
+      "primary_key": "relationship_key",
+      "all_columns": ["relationship_key", "member_key", "snapshot_date_key", "total_deposits", "total_loans", "number_of_products", "number_of_deposit_accounts", "number_of_loan_accounts", "relationship_months", "lifetime_fee_revenue", "lifetime_interest_income", "lifetime_value", "attrition_risk_score", "retention_rate_indicator", "primary_branch_key"],
+      "notes": "Use lifetime_value (NOT relationship_value). retention_rate_indicator is BIT type (1/0)."
+    },
+    "bridge_member_product": {
+      "key_columns": ["member_key", "product_key", "open_date", "is_active"]
+    },
+    "dim_member": {
+      "primary_key": "member_key",
+      "key_columns": ["member_key", "member_id", "member_number", "first_name", "last_name", "date_of_birth", "gender", "member_since_date", "primary_branch_key", "member_status", "member_segment", "risk_tier", "relationship_tier", "is_current"],
+      "notes": "ALWAYS filter with is_current = 1 for current member records"
+    },
+    "dim_branch": {
+      "primary_key": "branch_key",
+      "key_columns": ["branch_key", "branch_name", "region", "metro_area", "county", "state", "is_current", "is_active"],
+      "notes": "Filter with is_current = 1 AND is_active = 1 for active branches"
+    }
+  }
+}
