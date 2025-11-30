@@ -104,6 +104,25 @@
       ],
       "correct_approach": "Use member_since_date directly for date comparisons WITHOUT joining to dim_date, or join using the appropriate date_key column if available",
       "rule": "member_since_date is already a DATE type - use it directly in WHERE clauses. Do NOT join it with dim_date.full_date."
+    },
+    "date_integer_arithmetic": {
+      "description": "Using integer arithmetic (+, -, *, /) directly with DATE type columns causes 'Operand type clash: date is incompatible with int'",
+      "critical_rule": "NEVER use arithmetic operators directly with DATE columns. ALWAYS use DATEADD function.",
+      "wrong_patterns": [
+        "date_column - 0",
+        "date_column + 1",
+        "CAST('2024-12-31' AS DATE) - 0",
+        "CAST('2024-12-31' AS DATE) + 30",
+        "date_column - some_number"
+      ],
+      "correct_patterns": [
+        "DATEADD(day, 0, date_column)",
+        "DATEADD(day, 1, date_column)",
+        "DATEADD(day, 0, CAST('2024-12-31' AS DATE))",
+        "DATEADD(day, 30, CAST('2024-12-31' AS DATE))",
+        "DATEADD(day, -N, date_column)"
+      ],
+      "rule": "In MS SQL Server, DATE types cannot use +/- operators with integers. Use DATEADD(day, N, date_column) instead."
     }
   },
 
@@ -159,6 +178,17 @@
         "1. Check column data type in CREATE TABLE",
         "2. Remove quotes from numeric values in WHERE/JOIN clauses",
         "3. INT/BIGINT columns: use 12345, not '12345'"
+      ]
+    },
+    "date_int_type_clash": {
+      "error_pattern": "Operand type clash: date is incompatible with int",
+      "root_cause": "Used arithmetic operators (+, -, etc.) directly with DATE type instead of DATEADD function",
+      "resolution_steps": [
+        "1. Find where DATE column is being used with +/- operators",
+        "2. Replace 'date_column - N' with 'DATEADD(day, -N, date_column)'",
+        "3. Replace 'date_column + N' with 'DATEADD(day, N, date_column)'",
+        "4. Replace 'CAST(...) - 0' with just 'CAST(...)' or 'DATEADD(day, 0, CAST(...))'",
+        "5. MS SQL Server DATE type does NOT support +/- with integers - ALWAYS use DATEADD"
       ]
     }
   },

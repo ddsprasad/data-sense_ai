@@ -112,7 +112,8 @@ def original_question_response(question_id, question_type, query, vector_store_f
 
     prompt = "You are an expert in classifying whether the question is related to fetching sql results or fetching information from the documentation about the database, table schemas, column definitions, relations between tables. If the CURRENT QUESTION needs to run some sql query, then respond with exactly and only 'sql' and nothing else at all. If the CURRENT QUESTION needs to fetch from the database definition documentation, then respond with exactly and only 'rag' and nothing else at all. ALWAYS the answer should depend on the CURRENT QUESTION only. Question - "
     prompt_final = prompt + "[Current Question]: " + query
-    llm_response, _ = get_llm_response(question_id, question_type, prompt_final, "GPT 4", "SQL-RAG-Switch-Original-Question", None, None, None, None, False)
+    # Use GPT-3.5 for simple classification - much faster
+    llm_response, _ = get_llm_response(question_id, question_type, prompt_final, "GPT 3.5 0125", "SQL-RAG-Switch-Original-Question", None, None, None, None, False)
     sql_or_rag = "RAG"
     if "sql".lower() in llm_response.lower():
         sql_or_rag = "SQL"
@@ -325,7 +326,8 @@ def followup_question_response(question_id, question_type, parent_question_id, q
              f"{history_rag}\n"
              f"[Current-Question]{query}[/Current-Question]")
 
-    llm_response, _ = get_llm_response(question_id, question_type, prompt_final, "GPT 4", "SQL-RAG-Switch-Follow-Up-Question", None, None, None, None, False)
+    # Use GPT-3.5 for simple classification - much faster
+    llm_response, _ = get_llm_response(question_id, question_type, prompt_final, "GPT 3.5 0125", "SQL-RAG-Switch-Follow-Up-Question", None, None, None, None, False)
     sql_or_rag = "RAG"
     if "sql".lower() in llm_response.lower():
         sql_or_rag = "SQL"
@@ -487,7 +489,17 @@ def get_charts_code(question_id):
     """
     Generate chart options for a given question's result set.
     Returns chart configuration for ApexCharts or Google Charts.
+    Uses caching to speed up repeated requests.
     """
+    from llm.response_cache import get_response_cache
+
+    # Check cache first
+    cache = get_response_cache()
+    cached_chart = cache.get(question_id, "chart")
+    if cached_chart:
+        logger.info(f"Cache HIT for chart: {question_id}")
+        return cached_chart
+
     try:
         call_center_locations = {
                                     "San Francisco": {"lat": 37.773972, "long": -122.431297},
@@ -654,6 +666,10 @@ Give only the options value and nothing else in a code block. Dataset - """
                 }
 
         logger.info(f"Chart generated successfully for question_id: {question_id}, type: {response['chart_type']}")
+
+        # Cache the successful response (1 hour TTL)
+        cache.set(question_id, response, "chart", ttl=3600)
+
         return response
 
     except Exception as e:

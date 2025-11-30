@@ -1,12 +1,15 @@
-from fastapi import FastAPI, HTTPException, Request, Depends, Header, UploadFile
+from fastapi import FastAPI, HTTPException, Request, Depends, Header, UploadFile, BackgroundTasks
 from fastapi.responses import JSONResponse, HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
-from models.request_models import QuestionRequestModel, FollowUpQuestionRequestModel, UserHistoryRequestModel, UserHistoryQuestionRequestModel, RelatedQuestionRequestModel, DislikeQuestionRequestModel, DeleteQuestionRequestModel, RenameQuestionRequestModel, SharedHistoryQuestionRequestModel, UserValidationRequestModel, QuestionTagsRequestModel, ChartsRequestModel, ChartEditRequestModel, ChartOptionsRequestModel, ChartOptionsEditRequestModel, ChartOptionsSaveEditedRequestModel
-from self_db import create_question, get_user_history_question, get_user_history, update_question, set_answer_dislike, get_shared_story_history_question, rename_question, delete_question, get_trending_questions, get_user_details, update_question_tags, update_question_updated_at, update_question_chart_info
+from models.request_models import QuestionRequestModel, FollowUpQuestionRequestModel, UserHistoryRequestModel, UserHistoryQuestionRequestModel, RelatedQuestionRequestModel, DislikeQuestionRequestModel, DeleteQuestionRequestModel, RenameQuestionRequestModel, SharedHistoryQuestionRequestModel, UserValidationRequestModel, QuestionTagsRequestModel, ChartsRequestModel, ChartEditRequestModel, ChartOptionsRequestModel, ChartOptionsEditRequestModel, ChartOptionsSaveEditedRequestModel, TrendingQuestionsRequestModel
+from self_db import create_question, get_user_history_question, get_user_history, update_question, set_answer_dislike, get_shared_story_history_question, rename_question, delete_question, get_trending_questions, get_user_details, update_question_tags, update_question_updated_at, update_question_chart_info, get_all_databases, get_trending_questions_by_database
 from app_init.init_app import create_vector_store, create_rag_vector_store
-from llm import api_handlers 
+from llm import api_handlers
+from llm.response_cache import get_response_cache
+from llm.async_handlers import run_in_executor, get_tags_async, get_related_questions_async, get_additional_insights_async
 from self_db import get_db
+import asyncio
 import time, json
 from datetime import datetime
 from langchain_community.document_loaders import PyPDFLoader
@@ -166,13 +169,29 @@ async def generic_exception_handler(request: Request, exc: Exception):
 
 
 @app.post("/{version}/original-question")
-def answer_original_question(request_data: QuestionRequestModel, version: str, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
+async def answer_original_question(request_data: QuestionRequestModel, version: str, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
     try:
         start_time = time.time()
         user_id = request_data.user_id
         question_id = str(request_data.question_id)
         question_asked = request_data.question_asked
         question_type = "Original-Question"
+
+        # Check cache first for faster response
+        cache = get_response_cache()
+        cached_response = cache.get(question_asked, "original")
+        if cached_response:
+            logger.info(f"Cache hit for question: {question_asked[:50]}...")
+            answered_at = datetime.now().strftime("%B %d, %Y, %H:%M:%S")
+            return {
+                "question_id": question_id,
+                "sql": cached_response.get("sql"),
+                "answer": cached_response.get("answer"),
+                "answered_at": answered_at,
+                "show_chart": cached_response.get("show_chart", 0),
+                "show_sql": cached_response.get("show_sql", 0),
+                "cached": True
+            }
 
         # Insert the question first for logging purposes
         try:
@@ -183,7 +202,15 @@ def answer_original_question(request_data: QuestionRequestModel, version: str, d
 
         vector_store_from_metadata, create_statement_dict = select_vector_version(version)
         model_to_use = select_model(version)
-        extracted_sql, formatted_output, found_matching_sql, show_chart, show_sql = api_handlers.original_question_response(question_id, question_type, question_asked, vector_store_from_metadata, create_statement_dict, False, model_to_use, rag_vector_store)
+
+        # Run the question processing in executor (non-blocking)
+        extracted_sql, formatted_output, found_matching_sql, show_chart, show_sql = await run_in_executor(
+            api_handlers.original_question_response,
+            question_id, question_type, question_asked,
+            vector_store_from_metadata, create_statement_dict,
+            True,  # Enable SQL reuse
+            model_to_use, rag_vector_store
+        )
 
         # Check if the final database response is an error
         if formatted_output and 'ran into error' in formatted_output:
@@ -200,6 +227,14 @@ def answer_original_question(request_data: QuestionRequestModel, version: str, d
             logger.error(f"Error updating question: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error while updating question: {str(e)}")
 
+        # Cache the successful response
+        cache.set(question_asked, {
+            "sql": extracted_sql,
+            "answer": formatted_output,
+            "show_chart": show_chart,
+            "show_sql": show_sql
+        }, "original", ttl=3600)
+
         return {"question_id": question_id, "sql": extracted_sql, "answer": formatted_output, "answered_at": answered_at, "show_chart": show_chart, "show_sql": show_sql}
 
     except HTTPException:
@@ -209,13 +244,27 @@ def answer_original_question(request_data: QuestionRequestModel, version: str, d
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {str(e)}")
     
 @app.post("/{version}/additional-insights")
-def answer_additional_insights(request_data: QuestionRequestModel, version: str, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
+async def answer_additional_insights(request_data: QuestionRequestModel, version: str, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
     try:
         start_time = time.time()
         user_id = request_data.user_id
         question_id = str(request_data.question_id)
         question_asked = request_data.question_asked
         question_type = "Additional-Insights"
+
+        # Check cache first
+        cache = get_response_cache()
+        cached_response = cache.get(question_asked, "insights")
+        if cached_response:
+            logger.info(f"Cache hit for insights: {question_asked[:50]}...")
+            answered_at = datetime.now().strftime("%B %d, %Y, at %H:%M:%S")
+            return {
+                "question_id": question_id,
+                "sql": cached_response.get("sql"),
+                "answer": cached_response.get("answer"),
+                "answered_at": answered_at,
+                "cached": True
+            }
 
         try:
             create_question(db, user_id, question_id, question_type, None, question_asked)
@@ -225,10 +274,16 @@ def answer_additional_insights(request_data: QuestionRequestModel, version: str,
 
         vector_store_from_metadata, create_statement_dict = select_vector_version(version)
         model_to_use = select_model(version)
-        extracted_sql, formatted_output = api_handlers.additional_insights_response(question_id, question_type, question_asked, vector_store_from_metadata, create_statement_dict, model_to_use)
+
+        # Run async
+        extracted_sql, formatted_output = await run_in_executor(
+            api_handlers.additional_insights_response,
+            question_id, question_type, question_asked,
+            vector_store_from_metadata, create_statement_dict, model_to_use
+        )
 
         # Check if the final database response is an error
-        if 'ran into error' in formatted_output:
+        if formatted_output and 'ran into error' in formatted_output:
             raise HTTPException(status_code=500, detail="Failed to execute query after several attempts.")
 
         time_taken = time.time() - start_time
@@ -236,13 +291,13 @@ def answer_additional_insights(request_data: QuestionRequestModel, version: str,
         # Update the question with the time_taken now
         answered_at = datetime.now().strftime("%B %d, %Y, at %H:%M:%S")
         try:
-            ### for now not optimising additional insights to reuse existing questions because
-            ### chances for exact match are less
-            ### but if we do include it, then the found_matching_sql parameter below needs to be updated accordingly
             update_question(user_id, question_id, question_type, round(time_taken, 2), False, formatted_output, extracted_sql, answered_at, None, None)
         except ValueError as e:
             logger.error(f"Error updating question for insights: {str(e)}")
             raise HTTPException(status_code=500, detail=f"Error while updating question: {str(e)}")
+
+        # Cache the response
+        cache.set(question_asked, {"sql": extracted_sql, "answer": formatted_output}, "insights", ttl=3600)
 
         return {"question_id": question_id, "sql": extracted_sql, "answer": formatted_output, "answered_at": answered_at}
 
@@ -254,76 +309,110 @@ def answer_additional_insights(request_data: QuestionRequestModel, version: str,
 
 
 @app.post("/{version}/related-questions")
-def get_related_questions(request_data: RelatedQuestionRequestModel, version: str, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):              
+async def get_related_questions(request_data: RelatedQuestionRequestModel, version: str, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
     start_time = time.time()
     user_id = request_data.user_id
     question_id = str(request_data.question_id)
-    question_asked = request_data.question_asked    
+    question_asked = request_data.question_asked
     question_type = "Related Questions"
+
+    # Check cache first
+    cache = get_response_cache()
+    cached_response = cache.get(question_asked, "related")
+    if cached_response:
+        logger.info(f"Cache hit for related questions: {question_asked[:50]}...")
+        return {"related_questions": cached_response, "cached": True}
+
     try:
-        create_question(db, user_id, question_id, question_type, None, question_asked)  
-    except ValueError as e:
-        return {"message": "Error while saving question", "error": str(e)}
-
-    vector_store_from_metadata, create_statement_dict = select_vector_version(version)  
-    model_to_use = select_model(version)     
-    related_questions = api_handlers.related_questions_response(question_id, question_type, question_asked, vector_store_from_metadata, create_statement_dict, model_to_use)   
-    
-    time_taken = time.time() - start_time
-
-    
-    try:        
-        update_question(user_id, question_id, question_type, round(time_taken, 2), False, None, None, None, None, None)      
-    except ValueError as e:
-        return {"message": "Error while updating question", "error": str(e)}
-
-    return {"related_questions": related_questions}
-
-
-@app.post("/{version}/follow-up-question")
-def answer_follow_up_question(request_data: FollowUpQuestionRequestModel, version: str, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):                
-    start_time = time.time()
-    user_id = request_data.user_id
-    parent_question_id = str(request_data.parent_question_id)
-    question_id = str(request_data.question_id)
-    question_asked = request_data.question_asked    
-    question_type="Follow-Up-Question"
-    
-    # Insert the question first for logging purposes
-    
-    try:
-        create_question(db, user_id, question_id, question_type, parent_question_id, question_asked)        
+        create_question(db, user_id, question_id, question_type, None, question_asked)
     except ValueError as e:
         return {"message": "Error while saving question", "error": str(e)}
 
     vector_store_from_metadata, create_statement_dict = select_vector_version(version)
     model_to_use = select_model(version)
-    extracted_sql, formatted_output, show_chart, show_sql = api_handlers.followup_question_response(question_id, question_type, parent_question_id, question_asked, vector_store_from_metadata, create_statement_dict, model_to_use, rag_vector_store)
+
+    # Run async
+    related_questions = await run_in_executor(
+        api_handlers.related_questions_response,
+        question_id, question_type, question_asked,
+        vector_store_from_metadata, create_statement_dict, model_to_use
+    )
+
+    time_taken = time.time() - start_time
+
+    try:
+        update_question(user_id, question_id, question_type, round(time_taken, 2), False, None, None, None, None, None)
+    except ValueError as e:
+        return {"message": "Error while updating question", "error": str(e)}
+
+    # Cache the response
+    cache.set(question_asked, related_questions, "related", ttl=3600)
+
+    return {"related_questions": related_questions}
+
+
+@app.post("/{version}/follow-up-question")
+async def answer_follow_up_question(request_data: FollowUpQuestionRequestModel, version: str, db: Session = Depends(get_db), api_key: str = Depends(get_api_key)):
+    start_time = time.time()
+    user_id = request_data.user_id
+    parent_question_id = str(request_data.parent_question_id)
+    question_id = str(request_data.question_id)
+    question_asked = request_data.question_asked
+    question_type = "Follow-Up-Question"
+
+    # Insert the question first for logging purposes
+    try:
+        create_question(db, user_id, question_id, question_type, parent_question_id, question_asked)
+    except ValueError as e:
+        return {"message": "Error while saving question", "error": str(e)}
+
+    vector_store_from_metadata, create_statement_dict = select_vector_version(version)
+    model_to_use = select_model(version)
+
+    # Run async
+    extracted_sql, formatted_output, show_chart, show_sql = await run_in_executor(
+        api_handlers.followup_question_response,
+        question_id, question_type, parent_question_id, question_asked,
+        vector_store_from_metadata, create_statement_dict, model_to_use, rag_vector_store
+    )
 
     # Check if the final database response is an error
-    if 'ran into error' in formatted_output:
-        raise ValueError("Failed to execute query after several attempts.")
+    if formatted_output and 'ran into error' in formatted_output:
+        raise HTTPException(status_code=500, detail="Failed to execute query after several attempts.")
 
     time_taken = time.time() - start_time
 
     # Update the question with the time_taken now
     answered_at = datetime.now().strftime("%B %d, %Y, at %H:%M:%S")
-    try:        
-        update_question(user_id, question_id, question_type, round(time_taken, 2), False, formatted_output, extracted_sql, answered_at, show_chart, show_sql)        
+    try:
+        update_question(user_id, question_id, question_type, round(time_taken, 2), False, formatted_output, extracted_sql, answered_at, show_chart, show_sql)
         update_question_updated_at(parent_question_id, user_id)
     except ValueError as e:
         return {"message": "Error while updating question", "error": str(e)}
-    
-    return {"question_id": question_id, "parent_question_id": parent_question_id, "sql": extracted_sql, "answer": formatted_output, "answered_at": answered_at, show_chart: show_chart, "show_chart": show_chart, "show_sql": show_sql}
+
+    return {"question_id": question_id, "parent_question_id": parent_question_id, "sql": extracted_sql, "answer": formatted_output, "answered_at": answered_at, "show_chart": show_chart, "show_sql": show_sql}
+
 
 @app.post("/{version}/get-tags")
-def get_question_tags(request_data: QuestionTagsRequestModel, api_key: str = Depends(get_api_key)): 
+async def get_question_tags(request_data: QuestionTagsRequestModel, api_key: str = Depends(get_api_key)):
     question_id = request_data.question_id
-    tags = api_handlers.get_tags(question_id)   
-    try:        
+
+    # Check cache
+    cache = get_response_cache()
+    cached_tags = cache.get(question_id, "tags")
+    if cached_tags:
+        return cached_tags
+
+    tags = await run_in_executor(api_handlers.get_tags, question_id)
+
+    try:
         update_question_tags(question_id, tags)
     except ValueError as e:
         return {"message": "Error while updating question", "error": str(e)}
+
+    # Cache the tags
+    if tags:
+        cache.set(question_id, tags, "tags", ttl=7200)
 
     return tags
 
@@ -348,9 +437,22 @@ def read_shared_story_history_for_question_id(request_data: SharedHistoryQuestio
     return story
 
 @app.post("/{version}/trending-questions")
-def read_shared_story_history_for_question_id(api_key: str = Depends(get_api_key)):  
-    trending_questions = get_trending_questions()   
+def read_trending_questions(request_data: TrendingQuestionsRequestModel = None, api_key: str = Depends(get_api_key)):
+    if request_data and request_data.database_name:
+        trending_questions = get_trending_questions_by_database(request_data.database_name)
+    else:
+        trending_questions = get_trending_questions()
     return trending_questions
+
+
+@app.get("/{version}/databases")
+def list_databases(api_key: str = Depends(get_api_key)):
+    """
+    Get all available databases from SQL Server.
+    Returns a list of database names that users can query.
+    """
+    databases = get_all_databases()
+    return {"databases": databases}
 
 @app.post("/{version}/rename")
 def read_history_for_question_id(request_data: RenameQuestionRequestModel, api_key: str = Depends(get_api_key)):     
@@ -380,13 +482,33 @@ def read_history_for_question_id(request_data: DislikeQuestionRequestModel, api_
     return 'ok'
 
 @app.post("/{version}/validate-user")
-def check_user_is_valid(request_data: UserValidationRequestModel):    
+def check_user_is_valid(request_data: UserValidationRequestModel):
     username = request_data.username
     password = request_data.password
-    user_details = get_user_details(username, password) 
+    user_details = get_user_details(username, password)
     user_details["api_key"] = get_api_key_for_user(user_details["user_id"])
     return user_details
-    
+
+
+@app.get("/{version}/cache-stats")
+def get_cache_stats(api_key: str = Depends(get_api_key)):
+    """Get cache statistics for monitoring performance."""
+    cache = get_response_cache()
+    stats = cache.get_stats()
+    # Cleanup expired entries
+    cleaned = cache.cleanup_expired()
+    stats["cleaned_expired"] = cleaned
+    return stats
+
+
+@app.post("/{version}/cache-clear")
+def clear_cache(api_key: str = Depends(get_api_key)):
+    """Clear all cached responses."""
+    cache = get_response_cache()
+    cache.clear()
+    return {"message": "Cache cleared successfully"}
+
+
 @app.post("/{version}/get-chart-img")
 def get_chart_img(request_data: ChartsRequestModel, api_key: str = Depends(get_api_key)):    
     question_id = request_data.question_id    
@@ -413,7 +535,26 @@ def get_chart(request_data: ChartOptionsRequestModel, version: str, api_key: str
 
         logger.info(f"Chart request for question_id: {question_id}, user_id: {user_id}")
 
-        # Generate chart configuration
+        # First check if chart already exists in database
+        from self_db import get_question_chart_info
+        saved_chart = get_question_chart_info(question_id)
+        if saved_chart:
+            logger.info(f"Chart loaded from database for question_id: {question_id}")
+            # Parse chart_data if it's a string
+            chart_data = saved_chart.get('chart_data', '[]')
+            if isinstance(chart_data, str):
+                try:
+                    chart_data = json.loads(chart_data)
+                except json.JSONDecodeError:
+                    chart_data = []
+            return {
+                "chart_type": saved_chart['chart_type'],
+                "chart_options": saved_chart['chart_options'],
+                "chart_data": chart_data,
+                "from_cache": True
+            }
+
+        # Generate chart configuration if not found in database
         chart_info = api_handlers.get_charts_code(question_id)
 
         # Check if chart generation resulted in an error

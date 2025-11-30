@@ -62,6 +62,30 @@ def execute_query(query, query_from_llm=False):
         session.close()
 
 
+def fix_subquery_error(sql_query: str) -> str:
+    """
+    Fix SQL that causes 'Subquery returned more than 1 value' error.
+    Adds TOP 1 to subqueries used with = operator.
+    """
+    import re
+    fixed_sql = sql_query
+
+    # Pattern: = (SELECT column FROM ... without TOP 1 or aggregate)
+    def add_top_1(match):
+        full_match = match.group(0)
+        # Check if already has TOP or aggregate
+        if 'TOP' in full_match.upper() or any(agg in full_match.upper() for agg in ['MAX(', 'MIN(', 'COUNT(', 'SUM(', 'AVG(']):
+            return full_match
+        # Add TOP 1 after SELECT
+        return re.sub(r'(SELECT\s+)', r'\1TOP 1 ', full_match, flags=re.IGNORECASE)
+
+    # Find = (SELECT ... FROM ...) patterns and add TOP 1
+    pattern = r'=\s*\(\s*SELECT\s+[^)]+\s+FROM\s+[^)]+\)'
+    fixed_sql = re.sub(pattern, add_top_1, fixed_sql, flags=re.IGNORECASE)
+
+    return fixed_sql
+
+
 def execute_query_original(question_id, question_type, usage_type, sql_query, query_from_llm = False, attempt_number = 1):
     start_time = time.time()
     db_user = os.environ.get("DB_USER")
@@ -85,22 +109,34 @@ def execute_query_original(question_id, question_type, usage_type, sql_query, qu
             column_names = [column[0] for column in cursor.description]
 
             # Fetch the result
-            rows = cursor.fetchall()   
+            rows = cursor.fetchall()
             if query_from_llm is False:
                return rows, column_names, None
-            else:           
+            else:
                 # Convert rows to list of dictionaries
-                result = [dict(zip(column_names, row)) for row in rows]  
+                result = [dict(zip(column_names, row)) for row in rows]
                 resultset_rows_count = len(result)
                 # Serialize to JSON using the custom encoder
-                json_result = json.dumps(result, cls=DecimalEncoder, indent=4)               
-                time_taken = time.time() - start_time                
+                json_result = json.dumps(result, cls=DecimalEncoder, indent=4)
+                time_taken = time.time() - start_time
                 create_execution(usage_type, question_id, question_type, sql_query, json_result, None, attempt_number, time_taken, resultset_rows_count)
                 return result, column_names, None
     except pyodbc.Error as ex:
-        error_message = str(ex)        
+        error_message = str(ex)
         print("Connection error:", ex)
-        time_taken = time.time() - start_time                
+
+        # Check for subquery error and attempt auto-fix (only on first attempt)
+        if "Subquery returned more than 1 value" in error_message and attempt_number == 1:
+            print("Detected subquery error, attempting auto-fix...")
+            fixed_sql = fix_subquery_error(sql_query)
+            if fixed_sql != sql_query:
+                print(f"Auto-fixed SQL, retrying...")
+                return execute_query_original(
+                    question_id, question_type, usage_type,
+                    fixed_sql, query_from_llm, attempt_number + 1
+                )
+
+        time_taken = time.time() - start_time
         if query_from_llm is True:
             create_execution(usage_type, question_id, question_type, sql_query, None, error_message, attempt_number, time_taken, 0)
         return None, None, f"ran into error {error_message} "

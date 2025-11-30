@@ -150,6 +150,13 @@ def _get_core_sql_rules():
                 for table, info in date_col_error['correct_column_names'].items():
                     rules_text += f"  ✅ {table}: use '{info['date_column']}'\n"
 
+        # Date integer arithmetic - prevent type clash errors
+        if 'date_integer_arithmetic' in sql_rules['common_mistakes']:
+            date_arith_error = sql_rules['common_mistakes']['date_integer_arithmetic']
+            rules_text += f"\n❌ CRITICAL - DATE ARITHMETIC:\n{date_arith_error['critical_rule']}\n"
+            rules_text += "WRONG: date_column - 0, CAST('2024-12-31' AS DATE) - 0\n"
+            rules_text += "CORRECT: Use DATEADD(day, 0, date_column) instead\n"
+
     return rules_text
 
 

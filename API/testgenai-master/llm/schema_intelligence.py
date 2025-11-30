@@ -152,7 +152,59 @@ Schema: {create_stmt[:500]}
                         suggestion = f" Did you mean: {similar}?" if similar else ""
                         errors.append(f"Column '{col}' does not exist in table '{table}'.{suggestion} Valid columns: {', '.join(list(valid_columns)[:15])}")
 
+        # Validate subqueries don't return multiple values with = operator
+        subquery_errors = self._validate_subqueries(sql)
+        errors.extend(subquery_errors)
+
         return len(errors) == 0, errors
+
+    def _validate_subqueries(self, sql: str) -> List[str]:
+        """
+        Validate subqueries to prevent 'Subquery returned more than 1 value' errors.
+
+        Returns:
+            List of subquery-related errors/warnings
+        """
+        errors = []
+        sql_upper = sql.upper()
+
+        # Pattern 1: = (SELECT without TOP 1 or MAX/MIN/COUNT)
+        # Find subqueries used with = operator
+        eq_subquery_pattern = r'=\s*\(\s*SELECT\s+(?!TOP\s+1)(?!MAX\s*\()(?!MIN\s*\()(?!COUNT\s*\()(?!SUM\s*\()(?!AVG\s*\()'
+        if re.search(eq_subquery_pattern, sql_upper):
+            # Check if it's a potentially problematic subquery
+            # Look for patterns like: = (SELECT column FROM table WHERE ...)
+            detailed_pattern = r'=\s*\(\s*SELECT\s+([^)]+?)\s+FROM'
+            matches = re.findall(detailed_pattern, sql_upper)
+            for match in matches:
+                # If selecting a non-aggregated column, it might return multiple values
+                if not any(agg in match for agg in ['MAX(', 'MIN(', 'COUNT(', 'SUM(', 'AVG(', 'TOP 1']):
+                    errors.append(
+                        f"SUBQUERY WARNING: Subquery with '=' may return multiple values. "
+                        f"Use 'TOP 1' or aggregate functions (MAX, MIN) in subquery, or use 'IN' instead of '='."
+                    )
+                    break
+
+        # Pattern 2: Nested subqueries that could cause issues
+        # WHERE col = (SELECT ... WHERE col2 = (SELECT ...))
+        nested_eq_subquery = r'=\s*\(\s*SELECT[^)]+WHERE[^)]+\(\s*SELECT'
+        if re.search(nested_eq_subquery, sql_upper):
+            errors.append(
+                f"SUBQUERY WARNING: Nested subqueries with '=' operator detected. "
+                f"Consider using JOINs or ensure each subquery returns exactly one value with TOP 1."
+            )
+
+        # Pattern 3: GROUP BY in subquery used with = (without HAVING that limits to 1)
+        group_subquery = r'=\s*\(\s*SELECT[^)]+GROUP\s+BY[^)]+\)'
+        if re.search(group_subquery, sql_upper):
+            # Check if there's a TOP 1 or aggregate
+            if 'TOP 1' not in sql_upper:
+                errors.append(
+                    f"SUBQUERY WARNING: Subquery with GROUP BY used with '=' operator may return multiple values. "
+                    f"Add 'TOP 1' or use 'IN' operator instead."
+                )
+
+        return errors
 
     def _extract_tables_from_sql(self, sql: str) -> Set[str]:
         """Extract table names from SQL query."""
@@ -276,10 +328,66 @@ Schema: {create_stmt[:500]}
                     fixed_sql,
                     flags=re.IGNORECASE
                 )
+            elif "SUBQUERY WARNING" in error:
+                # Try to fix subquery issues
+                fixed_sql = self._fix_subquery_issues(fixed_sql)
             else:
                 remaining_errors.append(error)
 
         return fixed_sql, remaining_errors
+
+    def _fix_subquery_issues(self, sql: str) -> str:
+        """
+        Attempt to fix subquery issues that could cause 'more than 1 value' errors.
+
+        Args:
+            sql: SQL with potential subquery issues
+
+        Returns:
+            Fixed SQL
+        """
+        fixed_sql = sql
+
+        # Fix 1: Add TOP 1 to subqueries used with = that don't have aggregates
+        # Pattern: = (SELECT column FROM ... without TOP 1 or aggregate)
+        def add_top_1_to_subquery(match):
+            full_match = match.group(0)
+            # Check if already has TOP or aggregate
+            if 'TOP' in full_match.upper() or any(agg in full_match.upper() for agg in ['MAX(', 'MIN(', 'COUNT(', 'SUM(', 'AVG(']):
+                return full_match
+            # Add TOP 1 after SELECT
+            return re.sub(r'(SELECT\s+)', r'\1TOP 1 ', full_match, flags=re.IGNORECASE)
+
+        # Find = (SELECT ... FROM ...) patterns and add TOP 1
+        pattern = r'=\s*\(\s*SELECT\s+[^)]+\s+FROM\s+[^)]+\)'
+        fixed_sql = re.sub(pattern, add_top_1_to_subquery, fixed_sql, flags=re.IGNORECASE)
+
+        # Fix 2: For nested subqueries, ensure inner ones have TOP 1
+        # This is a more aggressive fix for deeply nested subqueries
+        def fix_nested_subquery(match):
+            inner_sql = match.group(0)
+            # Add TOP 1 to inner SELECT if missing
+            if 'TOP' not in inner_sql.upper():
+                inner_sql = re.sub(r'(SELECT\s+)', r'\1TOP 1 ', inner_sql, count=1, flags=re.IGNORECASE)
+            return inner_sql
+
+        # Look for subqueries within WHERE clauses of other subqueries
+        nested_pattern = r'\(\s*SELECT\s+(?!TOP)[^)]+WHERE[^)]+\(\s*SELECT\s+(?!TOP)[^)]+\)\s*\)'
+        fixed_sql = re.sub(nested_pattern, fix_nested_subquery, fixed_sql, flags=re.IGNORECASE)
+
+        # Fix 3: Add ORDER BY with TOP 1 for date-related subqueries if missing
+        # Pattern: TOP 1 ... FROM DIM_DATE ... without ORDER BY
+        def add_order_by_for_dates(match):
+            full_match = match.group(0)
+            if 'ORDER BY' not in full_match.upper() and 'DIM_DATE' in full_match.upper():
+                # Add ORDER BY full_date DESC before the closing paren
+                return full_match.rstrip(')') + ' ORDER BY full_date DESC)'
+            return full_match
+
+        date_subquery_pattern = r'\(\s*SELECT\s+TOP\s+1[^)]+DIM_DATE[^)]+\)'
+        fixed_sql = re.sub(date_subquery_pattern, add_order_by_for_dates, fixed_sql, flags=re.IGNORECASE)
+
+        return fixed_sql
 
 
 def create_schema_intelligence(create_statement_dict: Dict[str, str]) -> SchemaIntelligence:

@@ -101,6 +101,14 @@ CRITICAL RULES:
 5. For "with us" or "our": resulted_in_our_loan = 1 (only in fact_credit_inquiry)
 6. For active members: is_current = 1 (only in dim_member)
 
+SUBQUERY RULES - VERY IMPORTANT:
+- NEVER use subqueries with = that might return multiple values
+- Use TOP 1 in subqueries when using = operator: WHERE col = (SELECT TOP 1 ...)
+- Or use IN/EXISTS for multiple values: WHERE col IN (SELECT ...)
+- For "latest" or "most recent", always use: SELECT TOP 1 ... ORDER BY date_col DESC
+- Example WRONG: WHERE year = (SELECT MAX(year) FROM table) AND quarter = (SELECT quarter FROM table WHERE year = ...)
+- Example RIGHT: WHERE date_key = (SELECT TOP 1 date_key FROM DIM_DATE ORDER BY full_date DESC)
+
 IMPORTANT - NEVER SHOW IDs IN RESULTS:
 7. NEVER return _key or _id columns in SELECT - always JOIN to dimension tables and show the descriptive name/value instead
 8. Instead of member_key → JOIN dim_member and show member_name or relevant member info

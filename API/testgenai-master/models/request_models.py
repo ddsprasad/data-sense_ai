@@ -72,6 +72,9 @@ class DeleteQuestionRequestModel(BaseModel):
     user_id: int
     question_id: str
 
-class UserValidationRequestModel(BaseModel):    
+class UserValidationRequestModel(BaseModel):
     username: str
     password: str
+
+class TrendingQuestionsRequestModel(BaseModel):
+    database_name: str = None

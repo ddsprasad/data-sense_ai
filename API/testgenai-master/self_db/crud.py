@@ -1,10 +1,54 @@
 from sqlalchemy.orm import Session
-from sqlalchemy import text
-from config import Settings
+from sqlalchemy import text, create_engine
+from sqlalchemy.exc import OperationalError, DBAPIError
+from config import settings
 from models.database_models import Question, Interaction, Execution
 from self_db import SessionLocal
 from util.util import tuple_to_dict
 import traceback
+from functools import lru_cache
+import time
+
+# Simple cache for databases and trending questions
+_cache = {
+    'databases': {'data': None, 'timestamp': 0},
+    'trending': {'data': None, 'timestamp': 0, 'db_name': None}
+}
+CACHE_TTL = 300  # 5 minutes cache
+
+
+def execute_with_retry(query_func, max_retries=2, delay=1):
+    """
+    Execute a database query with retry logic for transient connection errors.
+
+    Args:
+        query_func: Function that performs the database query
+        max_retries: Maximum number of retry attempts
+        delay: Delay in seconds between retries
+
+    Returns:
+        Result from query_func or None on failure
+    """
+    last_exception = None
+    for attempt in range(max_retries + 1):
+        try:
+            return query_func()
+        except (OperationalError, DBAPIError) as e:
+            last_exception = e
+            error_str = str(e)
+            # Check if it's a transient connection error
+            if any(code in error_str for code in ['08S01', '08001', '08003', '08004', '08007']):
+                if attempt < max_retries:
+                    print(f"Connection error (attempt {attempt + 1}/{max_retries + 1}), retrying in {delay}s...")
+                    time.sleep(delay)
+                    continue
+            # Non-transient error, don't retry
+            raise
+
+    # All retries exhausted
+    if last_exception:
+        raise last_exception
+    return None
 
 def log_exception(e, additional_info = ''):
     db = SessionLocal()   
@@ -93,21 +137,54 @@ def update_question_tags(question_id: str, tags: str):
         db.close()
 
 def update_question_chart_info(question_id: str, chart_type: str, chart_options: str, chart_data: str):
-    db = SessionLocal()   
+    db = SessionLocal()
     query = text("""
-            UPDATE QUESTIONS 
-                 SET chart_type = :chart_type, chart_data = :chart_data, chart_options = :chart_options 
+            UPDATE QUESTIONS
+                 SET chart_type = :chart_type, chart_data = :chart_data, chart_options = :chart_options
                  WHERE question_id = :question_id
             """)
     try:
         db.execute(query, {'chart_type': chart_type, 'chart_data': chart_data, 'chart_options': chart_options, 'question_id': question_id})
-        db.commit()  
-        return 'done'      
-    
+        db.commit()
+        return 'done'
+
     except Exception as e:
         db.rollback()
         log_exception(e, 'update_question_chart_info')
         print(f"An error occurred in update_question_chart_info: {str(e)}")
+        return None
+    finally:
+        db.close()
+
+
+def get_question_chart_info(question_id: str):
+    """
+    Get saved chart info for a question from the database.
+    Returns chart_type, chart_options, and chart_data if they exist.
+    """
+    db = SessionLocal()
+    query = text("""
+        SELECT chart_type, chart_options, chart_data
+        FROM QUESTIONS
+        WHERE question_id = :question_id
+        AND chart_type IS NOT NULL
+        AND chart_options IS NOT NULL
+    """)
+    try:
+        result = db.execute(query, {'question_id': question_id})
+        row = result.fetchone()
+        if row and row[0] and row[1]:
+            return {
+                'chart_type': row[0],
+                'chart_options': row[1],
+                'chart_data': row[2] if row[2] else '[]'
+            }
+        return None
+
+    except Exception as e:
+        db.rollback()
+        log_exception(e, 'get_question_chart_info')
+        print(f"An error occurred in get_question_chart_info: {str(e)}")
         return None
     finally:
         db.close()
@@ -301,7 +378,7 @@ def get_trending_questions():
 
     # Query for actual trending questions from last 30 days
     query = text("""
-        SELECT TOP 3
+        SELECT TOP 4
             q.question_asked as trending_questions,
             CASE
                 WHEN q.question_asked LIKE '%branch%' OR q.question_asked LIKE '%location%' THEN 'location_on'
@@ -616,12 +693,12 @@ def get_result_set(question_id):
                     AND resultset IS NOT NULL
                     ORDER BY attempt DESC
                 """)
-    try:      
+    try:
         result_proxy = db.execute(query, {'question_id': question_id})
         column_names = list(result_proxy.keys())
         results = result_proxy.fetchall()
-        return [tuple_to_dict(row, column_names) for row in results] 
-    
+        return [tuple_to_dict(row, column_names) for row in results]
+
     except Exception as e:
         db.rollback()
         log_exception(e, 'get_result_set')
@@ -629,3 +706,168 @@ def get_result_set(question_id):
         return None
     finally:
         db.close()
+
+
+def get_all_databases():
+    """
+    Get all databases from the SQL Server.
+    Returns a list of database names that are accessible.
+    Uses caching to speed up repeated requests.
+    """
+    global _cache
+
+    # Check cache first
+    current_time = time.time()
+    if (_cache['databases']['data'] is not None and
+        current_time - _cache['databases']['timestamp'] < CACHE_TTL):
+        return _cache['databases']['data']
+
+    def query_databases():
+        db = SessionLocal()
+        try:
+            # Query to get all user databases (excluding system databases)
+            query = text("""
+                SELECT name as database_name
+                FROM sys.databases
+                WHERE database_id > 4  -- Exclude system databases (master, tempdb, model, msdb)
+                AND state_desc = 'ONLINE'
+                AND name NOT IN ('master', 'tempdb', 'model', 'msdb', 'ReportServer', 'ReportServerTempDB')
+                ORDER BY name
+            """)
+            result_proxy = db.execute(query)
+            column_names = list(result_proxy.keys())
+            results = result_proxy.fetchall()
+            return [tuple_to_dict(row, column_names) for row in results]
+        finally:
+            db.close()
+
+    try:
+        data = execute_with_retry(query_databases, max_retries=2, delay=1)
+
+        if data:
+            # Update cache
+            _cache['databases']['data'] = data
+            _cache['databases']['timestamp'] = current_time
+            return data
+
+        # Return fallback if query returns empty
+        return [{"database_name": "DataSense"}]
+
+    except Exception as e:
+        log_exception(e, 'get_all_databases')
+        print(f"An error occurred in get_all_databases: {str(e)}")
+        # Return fallback data on error
+        return [{"database_name": "DataSense"}]
+
+
+def get_trending_questions_by_database(database_name: str = None):
+    """
+    Get trending questions based on actual user activity.
+    Returns top questions asked in the last 30 days, ordered by frequency.
+    Falls back to curated questions based on database context if no recent activity.
+    Uses caching to speed up repeated requests.
+    """
+    global _cache
+
+    # Check cache first (cache per database_name)
+    current_time = time.time()
+    cache_key = database_name or 'default'
+    if (_cache['trending']['data'] is not None and
+        _cache['trending']['db_name'] == cache_key and
+        current_time - _cache['trending']['timestamp'] < CACHE_TTL):
+        return _cache['trending']['data']
+
+    def query_trending():
+        db = SessionLocal()
+        try:
+            # Query for actual trending questions from last 30 days
+            query = text("""
+                SELECT TOP 4
+                    q.question_asked as trending_questions,
+                    CASE
+                        WHEN q.question_asked LIKE '%branch%' OR q.question_asked LIKE '%location%' THEN 'location_on'
+                        WHEN q.question_asked LIKE '%member%' OR q.question_asked LIKE '%customer%' THEN 'people'
+                        WHEN q.question_asked LIKE '%loan%' OR q.question_asked LIKE '%credit%' THEN 'account_balance_wallet'
+                        WHEN q.question_asked LIKE '%balance%' OR q.question_asked LIKE '%deposit%' THEN 'account_balance'
+                        WHEN q.question_asked LIKE '%product%' OR q.question_asked LIKE '%account%' THEN 'category'
+                        WHEN q.question_asked LIKE '%claim%' OR q.question_asked LIKE '%insurance%' THEN 'policy'
+                        WHEN q.question_asked LIKE '%policy%' OR q.question_asked LIKE '%premium%' THEN 'verified_user'
+                        ELSE 'trending_up'
+                    END as icon_name,
+                    COUNT(*) as ask_count
+                FROM Questions q
+                WHERE q.question_type = 'Original-Question'
+                    AND q.answered_at IS NOT NULL
+                    AND q.timestamp >= DATEADD(day, -30, GETDATE())
+                    AND (q.is_deleted = 0 OR q.is_deleted IS NULL)
+                GROUP BY q.question_asked
+                ORDER BY COUNT(*) DESC, MAX(q.timestamp) DESC
+            """)
+            result_proxy = db.execute(query)
+            column_names = list(result_proxy.keys())
+            results = result_proxy.fetchall()
+            if results and len(results) > 0:
+                return [tuple_to_dict(row, column_names) for row in results]
+            return None
+        finally:
+            db.close()
+
+    try:
+        data = execute_with_retry(query_trending, max_retries=2, delay=1)
+
+        # If no trending questions, use fallback
+        if not data:
+            data = get_fallback_trending_questions(database_name)
+
+        # Update cache
+        _cache['trending']['data'] = data
+        _cache['trending']['db_name'] = cache_key
+        _cache['trending']['timestamp'] = current_time
+
+        return data
+
+    except Exception as e:
+        log_exception(e, 'get_trending_questions_by_database')
+        print(f"An error occurred in get_trending_questions_by_database: {str(e)}")
+        return get_fallback_trending_questions(database_name)
+
+
+def get_fallback_trending_questions(database_name: str = None):
+    """
+    Get fallback trending questions based on database context.
+    Returns curated questions relevant to the database type.
+    """
+    # DataSense default questions
+    datasense_questions = [
+        {"trending_questions": "Show me the top 10 customers by total purchases", "icon_name": "people", "ask_count": 0},
+        {"trending_questions": "What is the total revenue by product category?", "icon_name": "account_balance", "ask_count": 0},
+        {"trending_questions": "List all orders from the last 30 days", "icon_name": "trending_up", "ask_count": 0},
+        {"trending_questions": "Which products have the highest sales volume?", "icon_name": "category", "ask_count": 0}
+    ]
+
+    # Call center / member database questions
+    call_center_questions = [
+        {"trending_questions": "Top 10 Branches by New Member Acquisition This Quarter", "icon_name": "location_on", "ask_count": 0},
+        {"trending_questions": "Members with Credit Inquiries But No Loan Origination", "icon_name": "people", "ask_count": 0},
+        {"trending_questions": "Average Account Balance by Product Type", "icon_name": "account_balance", "ask_count": 0},
+        {"trending_questions": "What is the average call duration by department?", "icon_name": "trending_up", "ask_count": 0}
+    ]
+
+    # Insurance-specific questions
+    insurance_questions = [
+        {"trending_questions": "Top 10 Claims by Amount This Month", "icon_name": "policy", "ask_count": 0},
+        {"trending_questions": "Policies Expiring in the Next 30 Days", "icon_name": "verified_user", "ask_count": 0},
+        {"trending_questions": "Average Claim Processing Time by Category", "icon_name": "trending_up", "ask_count": 0},
+        {"trending_questions": "What is the claim approval rate by region?", "icon_name": "location_on", "ask_count": 0}
+    ]
+
+    if database_name:
+        db_lower = database_name.lower()
+        if 'datasense' in db_lower:
+            return datasense_questions
+        elif 'insurance' in db_lower or 'claim' in db_lower or 'policy' in db_lower:
+            return insurance_questions
+        elif 'call' in db_lower or 'center' in db_lower or 'member' in db_lower:
+            return call_center_questions
+
+    return datasense_questions
