@@ -46,9 +46,9 @@ jobs:
       - name: Login to Azure
         uses: azure/login@v2
         with:
-          client-id: ${{ secrets.BACKEND_CLIENT_ID }}
-          tenant-id: ${{ secrets.BACKEND_TENANT_ID }}
-          subscription-id: ${{ secrets.BACKEND_SUB_ID }}
+          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_92748182A1A24D989BE6F0E6D2229371 }}
+          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_0FAA8305759D411BB1FC0A575A38063E }}
+          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_6AE5A05BAE6E463A90FE882FFAF2E179 }}
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
@@ -56,3 +56,4 @@ jobs:
           app-name: datasense-backend
           slot-name: Production
           package: .
+
