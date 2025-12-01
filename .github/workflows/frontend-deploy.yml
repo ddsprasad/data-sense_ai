@@ -1,0 +1,41 @@
+name: Deploy Frontend to Azure
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'genaifrontend/**'
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+
+    - name: Install dependencies
+      working-directory: ./genaifrontend
+      run: npm ci
+
+    - name: Build Angular app
+      working-directory: ./genaifrontend
+      run: npm run build -- --configuration production
+
+    - name: Zip artifact for deployment
+      working-directory: ./genaifrontend/dist/datsense-ai/browser
+      run: zip -r ../../../../frontend.zip .
+
+    - name: Deploy to Azure Web App
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: 'datasense-app'
+        publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_APP }}
+        package: ./frontend.zip
