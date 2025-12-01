@@ -688,7 +688,7 @@ def get_result_set(question_id):
                     SELECT TOP 1 resultset
                     FROM
                         [genaipoc_history].[dbo].[Executions]
-                    WHERE execution_type = 'Original-Answer-SQL-Query-Generation'
+                    WHERE execution_type IN ('Original-Answer-SQL-Query-Generation', 'Demo-Cache')
                     AND question_id = :question_id
                     AND resultset IS NOT NULL
                     ORDER BY attempt DESC

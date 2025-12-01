@@ -33,12 +33,13 @@
     }
     .select {
       padding: 5px;
-      width: 175px;
+      width: auto;
       border-radius: 6px;
       border: 1px solid #F3F3EE;
       background: var(--input-bg, #fff);
       color: var(--text-primary-color);
       cursor: pointer;
+      font-size: 11px;
 
       &:disabled {
         opacity: 0.6;

@@ -51,36 +51,16 @@ export class HeaderComponent implements OnDestroy, OnInit {
   }
 
   loadDatabases() {
-    this.isLoadingDatabases = true;
-    this.http.getDatabases().subscribe({
-      next: (res: any) => {
-        this.databases = res.databases || [];
-        this.isLoadingDatabases = false;
-
-        if (this.databases.length > 0 && !this.selectedDatabase) {
-          // Try to find DataSense database as default, otherwise use first one
-          const dataSenseDb = this.databases.find(
-            (db: any) => db.database_name.toLowerCase() === 'datasense'
-          );
-          this.selectedDatabase = dataSenseDb ? dataSenseDb.database_name : this.databases[0].database_name;
-          ApiConstants.SELECTED_DATABASE = this.selectedDatabase;
-          // Notify components to load trending questions for the default database
-          this.util.notifyDatabaseChange(this.selectedDatabase);
-          this.util.notifyDropdownChange();
-        }
-      },
-      error: (err) => {
-        console.error('Error loading databases:', err);
-        this.isLoadingDatabases = false;
-        // Fallback to hardcoded options if API fails
-        this.databases = [
-          { database_name: 'DataSense' },
-          { database_name: 'Call Center DW' }
-        ];
-        this.selectedDatabase = 'DataSense';
-        ApiConstants.SELECTED_DATABASE = this.selectedDatabase;
-      }
-    });
+    // Use hardcoded database options
+    this.databases = [
+      { database_name: 'credit_union_dw' },
+      { database_name: 'call_center_dw' }
+    ];
+    this.selectedDatabase = 'credit_union_dw';
+    ApiConstants.SELECTED_DATABASE = this.selectedDatabase;
+    this.util.notifyDatabaseChange(this.selectedDatabase);
+    this.util.notifyDropdownChange();
+    this.isLoadingDatabases = false;
   }
 
   themChange() {

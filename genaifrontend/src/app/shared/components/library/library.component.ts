@@ -13,8 +13,23 @@ export interface questions {
   question_id: string,
   question_desc: string,
   edit?: boolean,
-  highlight?: boolean
+  highlight?: boolean,
+  isDemo?: boolean
 }
+
+// Demo questions to show by default in the Library
+const DEMO_QUESTIONS: questions[] = [
+  { question_id: 'demo-1', question_desc: 'Show me our top 3 branches by new member acquisition this quarter with their average initial deposit', isDemo: true },
+  { question_id: 'demo-2', question_desc: 'What are our cross-sell success rates by product for members who joined in the last 6 months', isDemo: true },
+  { question_id: 'demo-3', question_desc: 'Show me credit inquiries from the past quarter that didn\'t convert to loans', isDemo: true },
+  { question_id: 'demo-4', question_desc: 'Which members did we lose to competitors last month and what products did they have with us', isDemo: true },
+  { question_id: 'demo-5', question_desc: 'Identify members who are shopping for auto loans based on recent credit inquiries', isDemo: true },
+  { question_id: 'demo-6', question_desc: 'Show me members with declining credit scores who have loans with us', isDemo: true },
+  { question_id: 'demo-7', question_desc: 'What bureau tradelines show members shopping at other institutions', isDemo: true },
+  { question_id: 'demo-8', question_desc: 'How does our new car loan volume correlate with local market data', isDemo: true },
+  { question_id: 'demo-9', question_desc: 'What\'s the average member relationship value by member segment', isDemo: true },
+  { question_id: 'demo-10', question_desc: 'Show me a competitive analysis of our auto loan rates vs the top 3 competitors', isDemo: true },
+];
 @Component({
   selector: 'app-library',
   standalone: true,
@@ -78,12 +93,25 @@ export class LibraryComponent {
 
   getquestionsList() {
     this.http.getHistory().subscribe((res: any) => {
-      this.questionslist = res;
+      // Combine user history with demo questions
+      // Filter out demo questions that match user's actual questions to avoid duplicates
+      const userQuestions = res || [];
+      const userQuestionDescs = userQuestions.map((q: questions) => q.question_desc?.toLowerCase());
+
+      // Add demo questions that aren't already in user history
+      const filteredDemoQuestions = DEMO_QUESTIONS.filter(
+        demo => !userQuestionDescs.includes(demo.question_desc.toLowerCase())
+      );
+
+      // User questions first, then demo questions
+      this.questionslist = [...userQuestions, ...filteredDemoQuestions];
+
       setTimeout(() => {
         this.util.hightLight.next(this.previousSelectedID);
       }, 100);
     }, (res) => {
-
+      // On error, still show demo questions
+      this.questionslist = [...DEMO_QUESTIONS];
     });
   }
 
@@ -175,11 +203,23 @@ export class LibraryComponent {
     if (!this.isEditable) {
       this.util.hightLight.next(question.question_id);
       this.isEditable = false;
-      this.router.navigateByUrl(`insights?id=${question.question_id}`, {
-        replaceUrl: true, state: {
-          question: question.question_desc
-        }
-      });
+
+      if (question.isDemo) {
+        // For demo questions, navigate directly to insights page with the question
+        // This will trigger the API call to get the answer
+        this.router.navigateByUrl(`insights`, {
+          replaceUrl: true, state: {
+            question: question.question_desc
+          }
+        });
+      } else {
+        // For user history questions, load the saved answer
+        this.router.navigateByUrl(`insights?id=${question.question_id}`, {
+          replaceUrl: true, state: {
+            question: question.question_desc
+          }
+        });
+      }
     }
 
   }

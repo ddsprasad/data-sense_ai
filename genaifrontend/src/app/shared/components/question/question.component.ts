@@ -8,7 +8,7 @@ import { FormsModule } from '@angular/forms';
 import { MatChipsModule } from '@angular/material/chips';
 
 /**Other dependencies */
-import { Component, OnDestroy } from '@angular/core';
+import { Component, OnDestroy, OnInit } from '@angular/core';
 import { Router } from '@angular/router';
 import { UtilService } from '../../../_services/utils/util.service';
 import { ApiConstants } from '../../../_helpers/constants/api';
@@ -29,7 +29,7 @@ import { Subscription } from 'rxjs';
   templateUrl: './question.component.html',
   styleUrl: './question.component.scss'
 })
-export class QuestionComponent implements OnDestroy {
+export class QuestionComponent implements OnDestroy, OnInit {
   question: string = "";
   trendingQuestion: any = [];
   selectedDatabase: string = '';
@@ -57,6 +57,19 @@ export class QuestionComponent implements OnDestroy {
       this.getTrending();
     });
     this.subscriptions.push(dbSub);
+  }
+
+  ngOnInit() {
+    // Check if navigated from demo question in Library
+    // Use history.state which is available after navigation completes
+    const state = history.state as { demoQuestion?: string };
+    if (state?.demoQuestion) {
+      this.question = state.demoQuestion;
+      // Auto-submit the demo question after a short delay
+      setTimeout(() => {
+        this.navigate(this.question);
+      }, 300);
+    }
   }
 
   ngOnDestroy() {

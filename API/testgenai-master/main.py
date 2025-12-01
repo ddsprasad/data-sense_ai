@@ -8,6 +8,7 @@ from app_init.init_app import create_vector_store, create_rag_vector_store
 from llm import api_handlers
 from llm.response_cache import get_response_cache
 from llm.async_handlers import run_in_executor, get_tags_async, get_related_questions_async, get_additional_insights_async
+from llm.demo_responses import preload_demo_cache, get_demo_sql
 from self_db import get_db
 import asyncio
 import time, json
@@ -139,6 +140,11 @@ app.add_middleware(PerformanceLoggingMiddleware, slow_request_threshold_ms=1000.
 
 logger.info("FastAPI application initialized with logging middleware")
 
+# Preload demo responses into cache
+demo_cache = get_response_cache()
+preload_demo_cache(demo_cache)
+logger.info("Demo responses preloaded into cache")
+
 @app.exception_handler(HTTPException)
 async def http_exception_handler(request: Request, exc: HTTPException):
     if exc.status_code == 404:
@@ -177,7 +183,56 @@ async def answer_original_question(request_data: QuestionRequestModel, version: 
         question_asked = request_data.question_asked
         question_type = "Original-Question"
 
-        # Check cache first for faster response
+        # Check demo SQL cache first (pre-defined queries)
+        demo_sql_data = get_demo_sql(question_asked)
+        if demo_sql_data:
+            logger.info(f"Demo SQL cache hit for question: {question_asked[:50]}...")
+            from target_db.database import execute_query_original
+            from llm.llm_core import format_db_output
+
+            # Execute the cached SQL
+            cached_sql = demo_sql_data.get("sql", "").strip()
+            result, columns, error = execute_query_original(
+                question_id, question_type, "Demo-Cache",
+                cached_sql, query_from_llm=True
+            )
+
+            # Only use cached result if we got data (not empty and no error)
+            if not error and result and len(result) > 0:
+                # Format the database output
+                db_output = json.dumps(result)
+                formatted_output = format_db_output(
+                    question_id, question_type, db_output,
+                    question_asked, "Demo-Cache"
+                )
+
+                answered_at = datetime.now().strftime("%B %d, %Y, %H:%M:%S")
+                time_taken = time.time() - start_time
+
+                # Save to history
+                try:
+                    create_question(db, user_id, question_id, question_type, None, question_asked)
+                    update_question(user_id, question_id, question_type, round(time_taken, 2),
+                                  True, formatted_output, cached_sql, answered_at,
+                                  demo_sql_data.get("show_chart", 1), demo_sql_data.get("show_sql", 1))
+                except Exception as e:
+                    logger.warning(f"Failed to save demo question to history: {e}")
+
+                return {
+                    "question_id": question_id,
+                    "sql": cached_sql,
+                    "answer": formatted_output,
+                    "answered_at": answered_at,
+                    "show_chart": demo_sql_data.get("show_chart", 1),
+                    "show_sql": demo_sql_data.get("show_sql", 1),
+                    "cached": True,
+                    "demo_mode": True
+                }
+            else:
+                # Demo SQL returned no data or error, fall through to LLM
+                logger.info(f"Demo SQL returned no data or error, falling through to LLM")
+
+        # Check response cache for faster response (runtime cache)
         cache = get_response_cache()
         cached_response = cache.get(question_asked, "original")
         if cached_response:
@@ -252,7 +307,54 @@ async def answer_additional_insights(request_data: QuestionRequestModel, version
         question_asked = request_data.question_asked
         question_type = "Additional-Insights"
 
-        # Check cache first
+        # Check for demo insight question first
+        from llm.demo_responses import get_demo_insight_question, get_demo_sql
+        from target_db.database import execute_query_original
+        from llm.llm_core import format_db_output
+
+        demo_insight_question = get_demo_insight_question(question_asked)
+        if demo_insight_question:
+            logger.info(f"Demo insight for: {question_asked[:50]}... -> {demo_insight_question[:50]}...")
+
+            # Get the SQL for the insight question
+            insight_sql_data = get_demo_sql(demo_insight_question)
+            if insight_sql_data:
+                cached_sql = insight_sql_data.get("sql", "").strip()
+                result, columns, error = execute_query_original(
+                    question_id, question_type, "Demo-Insight",
+                    cached_sql, query_from_llm=True
+                )
+
+                if not error and result and len(result) > 0:
+                    db_output = json.dumps(result)
+                    formatted_output = format_db_output(
+                        question_id, question_type, db_output,
+                        demo_insight_question, "Demo-Insight"
+                    )
+
+                    answered_at = datetime.now().strftime("%B %d, %Y, at %H:%M:%S")
+                    time_taken = time.time() - start_time
+
+                    try:
+                        create_question(db, user_id, question_id, question_type, None, question_asked)
+                        update_question(user_id, question_id, question_type, round(time_taken, 2),
+                                      True, formatted_output, cached_sql, answered_at, None, None)
+                    except Exception as e:
+                        logger.warning(f"Failed to save demo insight to history: {e}")
+
+                    return {
+                        "question_id": question_id,
+                        "sql": cached_sql,
+                        "answer": formatted_output,
+                        "answered_at": answered_at,
+                        "insight_question": demo_insight_question,
+                        "cached": True,
+                        "demo_mode": True
+                    }
+                else:
+                    logger.info(f"Demo insight SQL returned no data, falling through to LLM")
+
+        # Check runtime cache
         cache = get_response_cache()
         cached_response = cache.get(question_asked, "insights")
         if cached_response:
@@ -316,7 +418,14 @@ async def get_related_questions(request_data: RelatedQuestionRequestModel, versi
     question_asked = request_data.question_asked
     question_type = "Related Questions"
 
-    # Check cache first
+    # Check for demo hardcoded related questions first
+    from llm.demo_responses import get_demo_related_questions
+    demo_related = get_demo_related_questions(question_asked)
+    if demo_related:
+        logger.info(f"Demo related questions hit for: {question_asked[:50]}...")
+        return {"related_questions": demo_related, "cached": True, "demo_mode": True}
+
+    # Check cache
     cache = get_response_cache()
     cached_response = cache.get(question_asked, "related")
     if cached_response:
@@ -360,6 +469,7 @@ async def answer_follow_up_question(request_data: FollowUpQuestionRequestModel, 
     question_asked = request_data.question_asked
     question_type = "Follow-Up-Question"
 
+    # No demo SQL check for follow-up questions - always use LLM with parent context
     # Insert the question first for logging purposes
     try:
         create_question(db, user_id, question_id, question_type, parent_question_id, question_asked)

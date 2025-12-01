@@ -1,20 +1,35 @@
 # Use an official Python runtime as a parent image
-FROM python:3.10.4
+FROM python:3.11-slim-bookworm
 
 # Set the working directory in the container to /app
 WORKDIR /app
 
-# Copy the current directory contents into the container at /app
-COPY . /app
+# Install system dependencies including ODBC Driver for SQL Server and build tools
+RUN apt-get update && apt-get install -y \
+    curl \
+    gnupg2 \
+    apt-transport-https \
+    g++ \
+    gcc \
+    make \
+    && curl -fsSL https://packages.microsoft.com/keys/microsoft.asc | gpg --dearmor -o /usr/share/keyrings/microsoft-prod.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/microsoft-prod.gpg] https://packages.microsoft.com/debian/12/prod bookworm main" > /etc/apt/sources.list.d/mssql-release.list \
+    && apt-get update \
+    && ACCEPT_EULA=Y apt-get install -y msodbcsql17 unixodbc-dev \
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install any needed packages specified in requirements.txt
+# Copy requirements first to leverage Docker cache
+COPY requirements.txt .
+
+# Install Python dependencies
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Install Uvicorn for running the app
-RUN pip install uvicorn
+# Copy the rest of the application code
+COPY . /app
 
-# Make port 5000 available to the world outside this container
+# Make port 8000 available
 EXPOSE 8000
 
-# Run the app using Uvicorn on port 5000
-CMD ["uvicorn", "main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+# Run the app using Gunicorn with Uvicorn workers for production
+CMD ["gunicorn", "-w", "2", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "main:app"]

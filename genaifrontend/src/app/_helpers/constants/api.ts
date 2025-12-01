@@ -1,5 +1,5 @@
 export const ApiConstants = {
-  API: 'https://datasense-api.azurewebsites.net/',
+  API: 'http://localhost:8000/',
   _apiVersion: 'v2/',
   _selectedDatabase: '',
   ORIGINAL_QUESTION : 'original-question',
